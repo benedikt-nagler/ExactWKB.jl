@@ -15,7 +15,7 @@ Riccati recursion whose all-orders solution $S = \sum_{m\ge -1} \hbar^{m} S_m$ i
 but divergent. Its **quantum periods** $\oint S_m\,dz$ — assembled into the **Voros
 symbol** — are the observables of the theory: Bohr–Sommerfeld quantization, the exact
 spectrum, and (through Borel summation, provided by
-[`Resurgence.jl`](../Resurgence.jl)) the non-perturbative completions.
+`Resurgence.jl`) the non-perturbative completions.
 
 The complex $z$-plane is organized by the **Stokes graph**: the trajectories
 $\mathrm{Im}\big[e^{-i\theta}\!\int^z \sqrt{Q}\,dz\big] = 0$ emanating from the turning
@@ -26,7 +26,7 @@ Iwaki–Nakanishi dictionary between Stokes graphs and cluster algebras is the p
 next milestone (M4) builds on — which is why this package depends on both
 `Resurgence.jl` and `ClusterAlgebras.jl`.
 
-## Features (M3)
+## Features
 
 - **Potentials & turning points**: `SchrodingerProblem` for polynomial $Q = V - E$;
   `turning_points` via polished, clustered polynomial roots (exact-rational potentials
@@ -76,11 +76,6 @@ g = stokes_graph(prob; theta = 0.0)               # Stokes graph at θ = 0
 topology_signature(g)                             # (4, 10, [(2, 3)])
 saddles(prob)                                     # 3 BPS states: two well cycles + instanton
 ```
-
-## Status
-
-M3 (Schrödinger / Stokes-graph core) is complete. M4 — the cluster bridge — is the next
-milestone; see `PLANNING/roadmap.md` and the ecosystem `../PLANNING/roadmap.md`.
 
 ## License
 
