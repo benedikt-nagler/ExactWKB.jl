@@ -1,0 +1,76 @@
+"""
+    ExactWKB
+
+Bridge package for the exact WKB / Stokes-graph layer of the cluster ecosystem.
+Turns a one-dimensional Schrödinger problem ``ħ²ψ″ = Q(z)ψ`` (`Q = V − E`,
+Iwaki–Nakanishi normalization) into the objects of exact WKB analysis: turning
+points, the all-orders WKB (Riccati) recursion, quantum periods and Voros symbols,
+and Stokes graphs with their saddle (BPS) data.
+
+It depends on `Resurgence.jl` (the resurgence foundation — Borel/Padé/Laplace
+summation of the Voros series) and on `ClusterAlgebras.jl` (the cluster core; unused
+until the M4 cluster bridge). Resurgence names are **not** re-exported, and
+AbstractAlgebra ring elements never leak into the public API — public types expose
+plain numbers and `Resurgence.FormalSeries`.
+"""
+module ExactWKB
+
+using PrecompileTools: @setup_workload, @compile_workload
+
+# Foundation packages. Resurgence supplies FormalSeries + the summation toolbox;
+# ClusterAlgebras is a declared dependency for the M4 bridge but unused in M3.
+import Resurgence
+import ClusterAlgebras
+
+export ExactWKBError, InvalidPotential, UnsupportedTurningPoint, ContourError,
+       TracingFailed
+export SchrodingerProblem, q_coefficients, energy, degree, variable, with_energy,
+       q_derivative_at
+export TurningPoint, turning_points, simple_turning_points, location, order, is_simple
+export WKBExpansion, wkb_expansion, s_odd_terms, evaluate_s_odd, even_odd_residual
+export period_integral, wkb_period, encircling_contour
+export VorosSymbol, voros_symbol, classical_period, quantum_series, full_series
+export StokesLine, StokesGraph, stokes_graph, is_finite_line
+export finite_lines, edges, n_infinite_lines, topology_signature
+export mass, endpoint
+export Saddle, saddle_candidates, saddles, is_saddle, stokes_graph_family, central_charge
+export plot_stokes_graph
+
+include("errors.jl")
+include("potentials.jl")
+include("turning_points.jl")
+include("wkb_recursion.jl")
+include("periods.jl")
+include("voros.jl")
+include("stokes_graph.jl")
+include("saddles.jl")
+include("show.jl")
+
+"""
+    plot_stokes_graph(g::StokesGraph; kwargs...)
+    plot_stokes_graph(gs::AbstractVector{<:StokesGraph}; kwargs...)
+
+Plot a Stokes graph (turning points, traced lines, highlighted saddles) or a θ-family
+of them. Provided by the Makie extension — load a backend first (`using CairoMakie` or
+`using GLMakie`). Without one this throws a hint.
+"""
+function plot_stokes_graph(args...; kwargs...)
+    error("plot_stokes_graph requires a Makie backend — run `using CairoMakie` " *
+          "(or `using GLMakie`) to load the ExactWKB Makie extension.")
+end
+
+# Precompile the flagship M3 chain on a cheap Float64 double well so the first
+# interactive `stokes_graph`/`voros_symbol` call is warm.
+@setup_workload begin
+    @compile_workload begin
+        prob = SchrodingerProblem([0.75, 0.0, -2.0, 0.0, 1.0])
+        tps = turning_points(prob)
+        w = wkb_expansion(prob; order = 2)
+        voros_symbol(w, encircling_contour(tps[2], tps[3]))
+        g = stokes_graph(prob; theta = 0.0)
+        topology_signature(g)
+        saddle_candidates(prob)
+    end
+end
+
+end # module ExactWKB
