@@ -8,8 +8,9 @@ points, the all-orders WKB (Riccati) recursion, quantum periods and Voros symbol
 and Stokes graphs with their saddle (BPS) data.
 
 It depends on `Resurgence.jl` (the resurgence foundation — Borel/Padé/Laplace
-summation of the Voros series) and on `ClusterAlgebras.jl` (the cluster core; unused
-until the M4 cluster bridge). Resurgence names are **not** re-exported, and
+summation of the Voros series) and on `ClusterAlgebras.jl` (the cluster core, live
+since the DDP layer: Voros wall-crossing = y-mutation, see `src/ddp.jl`).
+Resurgence names are **not** re-exported, and
 AbstractAlgebra ring elements never leak into the public API — public types expose
 plain numbers and `Resurgence.FormalSeries`.
 """
@@ -18,7 +19,7 @@ module ExactWKB
 using PrecompileTools: @setup_workload, @compile_workload
 
 # Foundation packages. Resurgence supplies FormalSeries + the summation toolbox;
-# ClusterAlgebras is a declared dependency for the M4 bridge but unused in M3.
+# ClusterAlgebras supplies the y-mutation / seed machinery of the DDP layer.
 import Resurgence
 import ClusterAlgebras
 
@@ -34,6 +35,8 @@ export StokesLine, StokesGraph, stokes_graph, is_finite_line
 export finite_lines, edges, n_infinite_lines, topology_signature
 export mass, endpoint
 export Saddle, saddle_candidates, saddles, is_saddle, stokes_graph_family, central_charge
+export voros_value, ddp_transform, verify_ddp, verify_ddp_mutation, ddp_seed,
+       intersection_pairing
 export plot_stokes_graph
 
 include("errors.jl")
@@ -44,6 +47,7 @@ include("periods.jl")
 include("voros.jl")
 include("stokes_graph.jl")
 include("saddles.jl")
+include("ddp.jl")
 include("show.jl")
 
 """

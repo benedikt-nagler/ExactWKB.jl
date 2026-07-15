@@ -5,9 +5,7 @@ import Resurgence
 
 @testset "ExactWKB.jl" begin
     @testset "Aqua" begin
-        # ClusterAlgebras is a declared dep for the M4 bridge but unused in M3.
-        Aqua.test_all(ExactWKB; ambiguities = false,
-                      stale_deps = (ignore = [:ClusterAlgebras],))
+        Aqua.test_all(ExactWKB; ambiguities = false)
         Aqua.test_ambiguities(ExactWKB)
     end
     include("test_errors.jl")
@@ -18,6 +16,7 @@ import Resurgence
     include("test_voros.jl")
     include("test_stokes_graph.jl")
     include("test_saddles.jl")
+    include("test_ddp.jl")
     include("test_show.jl")
     include("test_makie_ext.jl")
 end
