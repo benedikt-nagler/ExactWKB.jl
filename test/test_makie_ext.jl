@@ -27,4 +27,16 @@ using Test
         @test filesize(path) > 0
         rm(path; force = true)
     end
+
+    @testset "triangulation overlay renders" begin
+        cubic = SchrodingerProblem([0.0, -1.0, 0.0, 1.0])
+        gc = stokes_graph(cubic; theta = 0.3)
+        t = ideal_triangulation(gc)
+        fig = plot_triangulation(gc, t)
+        path = tempname() * ".png"
+        CairoMakie.save(path, fig)
+        @test isfile(path)
+        @test filesize(path) > 0
+        rm(path; force = true)
+    end
 end

@@ -65,3 +65,35 @@ struct TracingFailed <: ExactWKBError
 end
 
 Base.showerror(io::IO, e::TracingFailed) = print(io, "TracingFailed: ", e.msg)
+
+"""
+    NonGenericGraph(msg)
+
+Thrown by [`ideal_triangulation`](@ref) when the traced Stokes graph is not generic —
+it contains a finite Stokes line (`θ` sits on a wall: perturb it away from the
+[`saddle_candidates`](@ref) phases), an `:incomplete` line, or fails a combinatorial
+invariant of a generic degree-`d` graph (`d + 2` marked points, `d` triangles,
+`2d + 1` Stokes regions).
+"""
+struct NonGenericGraph <: ExactWKBError
+    msg::String
+end
+
+Base.showerror(io::IO, e::NonGenericGraph) = print(io, "NonGenericGraph: ", e.msg)
+
+"""
+    ChamberError(msg)
+
+Thrown when a chamber cannot carry the M4 cluster machinery: by
+[`charge_basis`](@ref) for a *cyclic chamber* (a triangle of the triangulation with
+all three edges internal, where the decay-oriented basis is not a seed basis — pick a
+θ in a tree chamber instead), and by [`bps_spectrum`](@ref) when no valid chamber
+ordering exists (two saddle phases coincide within tolerance — a marginal-stability
+wall, perturb the potential or the energy — or the greedy θ-decreasing mutation
+sequence fails to close into a maximal green sequence).
+"""
+struct ChamberError <: ExactWKBError
+    msg::String
+end
+
+Base.showerror(io::IO, e::ChamberError) = print(io, "ChamberError: ", e.msg)

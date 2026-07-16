@@ -96,6 +96,62 @@ function Base.show(io::IO, ::MIME"text/plain", s::Saddle)
           "  critical phase θ = ", _disp(s.theta), " (mod π)")
 end
 
+# -- IdealTriangulation --------------------------------------------------------------
+
+function Base.show(io::IO, t::IdealTriangulation)
+    print(io, "IdealTriangulation(", t.n_marked, "-gon, ", length(t.triangles),
+          " triangles, ", n_diagonals(t), " diagonals)")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", t::IdealTriangulation)
+    print(io, "IdealTriangulation of the ", t.n_marked, "-gon (dual Stokes regions)\n",
+          "  triangles : ", length(t.triangles), " (one per turning point)\n",
+          "  diagonals : ")
+    if n_diagonals(t) == 0
+        print(io, "none")
+    else
+        parts = ["γ$(t.diagonal_tp_pair[e]) ↔ $(t.edge_endpoints[e])"
+                 for e in 1:n_diagonals(t)]
+        print(io, join(parts, ", "))
+    end
+end
+
+# -- ChargeBasis ---------------------------------------------------------------------
+
+function Base.show(io::IO, cb::ChargeBasis)
+    print(io, "ChargeBasis(", n_charges(cb), " cycles)")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", cb::ChargeBasis)
+    print(io, "ChargeBasis — decay-oriented cycles of the triangulation diagonals")
+    for e in 1:n_charges(cb)
+        print(io, "\n  γ", cb.triangulation.diagonal_tp_pair[e],
+              " : Z = ", _disp(cb.central_charges[e]))
+    end
+    n_charges(cb) > 0 && print(io, "\n  pairing P = ", cb.pairing)
+end
+
+# -- BPSState / BPSSpectrum ----------------------------------------------------------
+
+function Base.show(io::IO, s::BPSState)
+    print(io, "BPSState(", s.charge, ", Z = ", _disp(s.central_charge),
+          ", Ω = ", s.omega, ")")
+end
+
+function Base.show(io::IO, sp::BPSSpectrum)
+    print(io, "BPSSpectrum(", n_states(sp), " states, θ₀ = ", _disp(sp.theta0), ")")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", sp::BPSSpectrum)
+    print(io, "BPSSpectrum — ", n_states(sp), " BPS states (chamber θ₀ = ",
+          _disp(sp.theta0), ", θ-decreasing)")
+    for s in sp.states
+        print(io, "\n  ", rpad(string(s.charge), 4 + 3 * length(s.charge)),
+              " |Z| = ", rpad(string(_disp(mass(s))), 10),
+              " θ_c = ", rpad(string(_disp(phase(s))), 10), " Ω = ", s.omega)
+    end
+end
+
 # subscript helper for small non-negative integers
 function _sub(n::Integer)
     n < 0 && return "₋" * _sub(-n)

@@ -17,6 +17,9 @@ import Resurgence
     include("test_stokes_graph.jl")
     include("test_saddles.jl")
     include("test_ddp.jl")
+    include("test_triangulation.jl")
+    include("test_charge_lattice.jl")
+    include("test_bps.jl")
     include("test_show.jl")
     include("test_makie_ext.jl")
 end

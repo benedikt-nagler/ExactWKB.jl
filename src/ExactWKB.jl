@@ -24,7 +24,7 @@ import Resurgence
 import ClusterAlgebras
 
 export ExactWKBError, InvalidPotential, UnsupportedTurningPoint, ContourError,
-       TracingFailed
+       TracingFailed, NonGenericGraph, ChamberError
 export SchrodingerProblem, q_coefficients, energy, degree, variable, with_energy,
        q_derivative_at
 export TurningPoint, turning_points, simple_turning_points, location, order, is_simple
@@ -37,7 +37,12 @@ export mass, endpoint
 export Saddle, saddle_candidates, saddles, is_saddle, stokes_graph_family, central_charge
 export voros_value, ddp_transform, verify_ddp, verify_ddp_mutation, ddp_seed,
        intersection_pairing
-export plot_stokes_graph
+export IdealTriangulation, ideal_triangulation, triangulation_quiver, n_diagonals,
+       diagonals, n_marked_points, infinite_lines, ray_exit_angles
+export ChargeBasis, charge_basis, charge_contour, bridge_seed, n_charges,
+       central_charges
+export BPSState, BPSSpectrum, bps_spectrum, n_states, charges, charge, phase
+export plot_stokes_graph, plot_triangulation
 
 include("errors.jl")
 include("potentials.jl")
@@ -48,6 +53,9 @@ include("voros.jl")
 include("stokes_graph.jl")
 include("saddles.jl")
 include("ddp.jl")
+include("triangulation.jl")
+include("charge_lattice.jl")
+include("bps.jl")
 include("show.jl")
 
 """
@@ -63,6 +71,19 @@ function plot_stokes_graph(args...; kwargs...)
           "(or `using GLMakie`) to load the ExactWKB Makie extension.")
 end
 
+"""
+    plot_triangulation(g::StokesGraph, t::IdealTriangulation; kwargs...)
+
+Plot the Stokes graph with its dual ideal triangulation overlaid: the boundary circle
+with the marked points at the asymptotic directions, and the diagonals (labelled by
+their turning-point pairs) as chords. Provided by the Makie extension — load a
+backend first (`using CairoMakie` or `using GLMakie`).
+"""
+function plot_triangulation(args...; kwargs...)
+    error("plot_triangulation requires a Makie backend — run `using CairoMakie` " *
+          "(or `using GLMakie`) to load the ExactWKB Makie extension.")
+end
+
 # Precompile the flagship M3 chain on a cheap Float64 double well so the first
 # interactive `stokes_graph`/`voros_symbol` call is warm.
 @setup_workload begin
@@ -74,6 +95,11 @@ end
         g = stokes_graph(prob; theta = 0.0)
         topology_signature(g)
         saddle_candidates(prob)
+        # the M4 bridge chain on the cheap cubic
+        cubic = SchrodingerProblem([0.0, -1.0, 0.0, 1.0])
+        t = ideal_triangulation(stokes_graph(cubic; theta = 0.3))
+        cb = charge_basis(cubic, t)
+        bridge_seed(cb)
     end
 end
 

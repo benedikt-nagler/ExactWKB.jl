@@ -1,13 +1,13 @@
 # Makie weakdep extension: Stokes-graph plotting.
 #
-# Renders a StokesGraph in the z-plane — turning points as markers, traced Stokes lines
+# Renders a StokesGraph in the z-plane - turning points as markers, traced Stokes lines
 # as curves (saddles highlighted), with a DataAspect so angles read true. A vector
 # method lays out a θ-family as a grid of panels.
 module ExactWKBMakieExt
 
 using ExactWKB
 using ExactWKB: lines, points, location, is_finite_line, turning_points, is_simple
-using Makie: Makie, Figure, Axis, lines!, scatter!, DataAspect, axislegend, @L_str
+using Makie: Makie, Figure, Axis, lines!, scatter!, text!, DataAspect, axislegend, @L_str
 
 # colour roles (backend-agnostic named colours)
 const _INF_COLOR = :steelblue
@@ -61,6 +61,43 @@ function ExactWKB.plot_stokes_graph(gs::AbstractVector{<:StokesGraph};
                   aspect = DataAspect())
         _draw!(ax, g)
     end
+    fig
+end
+
+const _MARKED_COLOR = :darkorange
+
+function ExactWKB.plot_triangulation(g::StokesGraph, t::IdealTriangulation;
+                                     resolution = (600, 600), title = nothing,
+                                     legend = true)
+    fig = Figure(size = resolution)
+    ttl = title === nothing ?
+          "Stokes graph + dual triangulation  (θ = $(round(Float64(g.theta), digits = 4)))" :
+          title
+    ax = Axis(fig[1, 1]; title = ttl, xlabel = L"\mathrm{Re}\,z",
+              ylabel = L"\mathrm{Im}\,z", aspect = DataAspect())
+    _draw!(ax, g)
+    # the boundary circle (where the rays exit) with the marked points at the
+    # asymptotic directions, and the diagonals as chords
+    R = maximum(abs(points(l)[end]) for l in ExactWKB.infinite_lines(g))
+    φ = range(0, 2π; length = 256)
+    lines!(ax, R .* cos.(φ), R .* sin.(φ); color = (:gray, 0.6), linestyle = :dot)
+    mp = [R * cis(a) for a in t.marked_angles]
+    scatter!(ax, Float64.(real.(mp)), Float64.(imag.(mp));
+             color = _MARKED_COLOR, markersize = 12, label = "marked point")
+    first_diag = true
+    for e in eachindex(t.edge_endpoints)
+        t.is_diagonal[e] || continue
+        zu, zv = mp[t.edge_endpoints[e][1]], mp[t.edge_endpoints[e][2]]
+        lines!(ax, Float64[real(zu), real(zv)], Float64[imag(zu), imag(zv)];
+               color = _MARKED_COLOR, linewidth = 2, linestyle = :dash,
+               label = first_diag ? "diagonal" : nothing)
+        first_diag = false
+        mid = (zu + zv) / 2
+        (i, j) = t.diagonal_tp_pair[e]
+        text!(ax, Float64(real(mid)), Float64(imag(mid));
+              text = "γ($i,$j)", color = _MARKED_COLOR, fontsize = 12)
+    end
+    legend && axislegend(ax; position = :rt, framevisible = false)
     fig
 end
 
