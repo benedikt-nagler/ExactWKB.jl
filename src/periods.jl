@@ -3,7 +3,7 @@
 # ∮√Q dz is the m = -1 case. Branch bookkeeping is the top correctness risk, so it is
 # isolated here: an adaptive pre-walk lays down nodes dense enough that arg Q never
 # jumps by more than ~π/2 between neighbours, and every quadrature sample unwraps
-# against the nearest node — no discrete sign choices inside the integrand.
+# against the nearest node - no discrete sign choices inside the integrand.
 
 using QuadGK: quadgk
 
@@ -85,6 +85,15 @@ function _period_atol(prob, verts, F)
     sqrt(eps(F)) * (1 + scale)
 end
 
+# Gauss–Kronrod order for the period quadratures. The integrands are analytic on the
+# contour, so raising the order converges exponentially - at BigFloat tolerances this
+# beats adaptive bisection at the default order 7 by well over an order of magnitude
+# (the high-m 1/Q^k integrands are stiff near the turning points).
+function _quad_order(::Type{F}) where {F<:AbstractFloat}
+    F === Float64 && return 7
+    clamp(Int(cld(precision(F), 8)), 21, 61)
+end
+
 """
     period_integral(prob::SchrodingerProblem, contour; closed = true) -> Complex
 
@@ -114,7 +123,7 @@ function period_integral(prob::SchrodingerProblem, contour::AbstractVector;
     end
     rt = rtol === nothing ? sqrt(eps(F)) : F(rtol)
     val, _ = quadgk(f, range(zero(F), one(F), length = K + 1)...;
-                    rtol = rt, maxevals = maxevals)
+                    rtol = rt, maxevals = maxevals, order = _quad_order(F))
     val
 end
 
@@ -125,7 +134,8 @@ The order-`m` quantum period ``∮ S_m\\,dz`` along `contour`, using the same �
 tracking as [`period_integral`](@ref). `m = -1` reproduces the classical period.
 """
 function wkb_period(w::WKBExpansion, contour::AbstractVector, m::Integer;
-                    closed::Bool = true, rtol = nothing, maxevals::Integer = 10^6)
+                    closed::Bool = true, rtol = nothing, atol = nothing,
+                    maxevals::Integer = 10^6)
     -1 ≤ m ≤ w.order ||
         throw(Resurgence.InvalidArgument("m must be in -1:$(w.order), got $m"))
     F = _contour_float(_as_complex.(contour))
@@ -144,8 +154,10 @@ function wkb_period(w::WKBExpansion, contour::AbstractVector, m::Integer;
         _eval_term(term, Complex{F}(z), Q, u) * dz
     end
     rt = rtol === nothing ? sqrt(eps(F)) : F(rtol)
+    at = atol === nothing ? zero(F) : F(atol)
     val, _ = quadgk(f, range(zero(F), one(F), length = K + 1)...;
-                    rtol = rt, maxevals = maxevals)
+                    rtol = rt, atol = at, maxevals = maxevals,
+                    order = _quad_order(F))
     val
 end
 

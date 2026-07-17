@@ -57,6 +57,20 @@ function Base.show(io::IO, ::MIME"text/plain", vs::VorosSymbol)
           "  quantum series: ", quantum_series(vs))
 end
 
+# -- SpectralCycle -----------------------------------------------------------------
+
+function Base.show(io::IO, c::SpectralCycle)
+    print(io, "SpectralCycle(:", c.kind, ", ", _disp(real(c.left)), " ↔ ",
+          _disp(real(c.right)), ")")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", c::SpectralCycle)
+    print(io, "SpectralCycle — ", c.kind === :well ? "classically allowed (well)" :
+          "forbidden (barrier/tunneling)", " period cycle\n",
+          "  turning points : ", _disp(c.left), " ↔ ", _disp(c.right), "\n",
+          "  contour        : ", length(c.contour), "-gon")
+end
+
 # -- StokesLine --------------------------------------------------------------------
 
 function Base.show(io::IO, l::StokesLine)

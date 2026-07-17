@@ -24,7 +24,11 @@ import Resurgence
 import ClusterAlgebras
 
 export ExactWKBError, InvalidPotential, UnsupportedTurningPoint, ContourError,
-       TracingFailed, NonGenericGraph, ChamberError
+       TracingFailed, NonGenericGraph, ChamberError, CoalescentTurningPoints,
+       QuantizationError
+export SpectralCycle, spectral_cycles, quantum_period, kind, endpoints
+export quantization_condition, spectral_determinant, wkb_eigenvalue
+export perturbative_b, instanton_a, verify_zjj, energy_splitting
 export SchrodingerProblem, q_coefficients, energy, degree, variable, with_energy,
        q_derivative_at
 export TurningPoint, turning_points, simple_turning_points, location, order, is_simple
@@ -50,9 +54,12 @@ include("turning_points.jl")
 include("wkb_recursion.jl")
 include("periods.jl")
 include("voros.jl")
+include("quantum_periods.jl")
 include("stokes_graph.jl")
 include("saddles.jl")
 include("ddp.jl")
+include("quantization.jl")
+include("double_well.jl")
 include("triangulation.jl")
 include("charge_lattice.jl")
 include("bps.jl")
@@ -100,6 +107,10 @@ end
         t = ideal_triangulation(stokes_graph(cubic; theta = 0.3))
         cb = charge_basis(cubic, t)
         bridge_seed(cb)
+        # the M5 spectral chain on a cheap Float64 harmonic well
+        harm = SchrodingerProblem([0.0, 0.0, 1.0])
+        spectral_cycles(harm, 1.0)
+        wkb_eigenvalue(harm, 0, 0.3; order = 2)
     end
 end
 

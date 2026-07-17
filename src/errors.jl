@@ -82,6 +82,43 @@ end
 Base.showerror(io::IO, e::NonGenericGraph) = print(io, "NonGenericGraph: ", e.msg)
 
 """
+    CoalescentTurningPoints(energy, z, separation)
+
+Thrown by [`spectral_cycles`](@ref) when the energy `E` sits at (or numerically too
+close to) a critical value of the potential, so two turning points coalesce near `z`
+(separation `separation`; a multiple root reports `separation = 0`). The WKB cycle
+data is singular there — perturb `E` away from the critical value. Degenerate-Weber
+local models are deliberately out of the M5 scope.
+"""
+struct CoalescentTurningPoints <: ExactWKBError
+    energy::Number
+    z::Number
+    separation::Real
+end
+
+function Base.showerror(io::IO, e::CoalescentTurningPoints)
+    print(io, "CoalescentTurningPoints: at E = $(e.energy) two turning points ",
+          "coalesce near z ≈ $(e.z) (separation ≈ $(e.separation)); E is too close ",
+          "to a critical value of the potential — perturb the energy")
+end
+
+"""
+    QuantizationError(msg)
+
+Thrown by [`wkb_eigenvalue`](@ref) when the Newton iteration on the exact
+quantization condition fails to converge (bad seed, coalescing turning points along
+the Newton path, or an `n`/`parity` that selects no eigenvalue), and by
+[`quantization_condition`](@ref) when the spectral-cycle layout at `E` does not match
+the requested condition (no well cycle, or a multi-well problem where a single-well
+condition was requested).
+"""
+struct QuantizationError <: ExactWKBError
+    msg::String
+end
+
+Base.showerror(io::IO, e::QuantizationError) = print(io, "QuantizationError: ", e.msg)
+
+"""
     ChamberError(msg)
 
 Thrown when a chamber cannot carry the M4 cluster machinery: by
