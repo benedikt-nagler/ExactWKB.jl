@@ -144,14 +144,6 @@ plot_stokes_graph(g)                 # one graph, or a vector for a θ-family
 plot_triangulation(g, t)             # the dual triangulation on top of the graph
 ```
 
-## Examples
-
-- [`examples/stokes_graphs_intro.ipynb`](examples/stokes_graphs_intro.ipynb) — the basics,
-  from turning points to Stokes graphs
-- [`examples/m3_flagship.jl`](examples/m3_flagship.jl) — the full WKB chain on the double well
-- [`examples/m4_flagship.jl`](examples/m4_flagship.jl) — the cluster bridge end to end
-- [`examples/m5_flagship.jl`](examples/m5_flagship.jl) — exact quantization and level splitting
-
 ## Related packages
 
 [Resurgence.jl](https://github.com/benedikt-nagler/Resurgence.jl) provides the Borel–Padé
