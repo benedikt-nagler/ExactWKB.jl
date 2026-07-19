@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   test:
-    name: Julia ${{ matrix.version }} — ${{ matrix.os }}
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -38,17 +38,36 @@ jobs:
         with:
           version: ${{ matrix.version }}
       - uses: julia-actions/cache@v2
-      # ClusterAlgebras.jl and Resurgence.jl are not in the General registry, so they
-      # cannot be resolved by name. Add them by URL before building.
-      - name: Add unregistered dependencies
+      # ClusterAlgebras.jl and Resurgence.jl are not in the General registry, so Pkg
+      # cannot resolve them by name. Check them out and `develop` them by path.
+      - uses: actions/checkout@v4
+        with:
+          repository: benedikt-nagler/ClusterAlgebras.jl
+          path: deps/ClusterAlgebras.jl
+      - uses: actions/checkout@v4
+        with:
+          repository: benedikt-nagler/Resurgence.jl
+          path: deps/Resurgence.jl
+      - name: Develop unregistered dependencies
         run: |
-          julia --project=. -e '
+          julia -e '
             using Pkg
-            Pkg.add(url = "https://github.com/benedikt-nagler/ClusterAlgebras.jl")
-            Pkg.add(url = "https://github.com/benedikt-nagler/Resurgence.jl")'
+            siblings = [PackageSpec(path = "deps/ClusterAlgebras.jl"),
+                        PackageSpec(path = "deps/Resurgence.jl")]
+            Pkg.activate(".")
+            Pkg.develop(siblings)
+            # test/Project.toml also lists ExactWKB itself, which is equally
+            # unregistered, so the test environment needs all three by path.
+            Pkg.activate("test")
+            Pkg.develop([siblings; PackageSpec(path = ".")])'
         shell: bash
       - uses: julia-actions/julia-buildpkg@v1
-      - uses: julia-actions/julia-runtest@v1
+      # Run the test environment prepared above directly, rather than via
+      # `julia-actions/julia-runtest` (`Pkg.test()`), which re-resolves the test
+      # environment and would lose the by-path entries for the unregistered deps.
+      - name: Run tests
+        run: julia --project=test --code-coverage=user test/runtests.jl
+        shell: bash
         continue-on-error: ${{ matrix.version == 'nightly' }}
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v4
