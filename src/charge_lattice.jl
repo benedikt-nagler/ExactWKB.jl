@@ -5,33 +5,41 @@
 # lower half-plane minus the positive real axis), and carries the central charge
 # `Z_j = ∮√Q` and the intersection pairing `P[i,j] = ⟨γ_i, γ_j⟩`.
 #
-# The keystone consistency of the bridge — checked at construction (`verify = true`)
-# — is that the numerically measured pairing reproduces the combinatorial exchange
-# matrix of the triangulation: `|P| == |B|` entrywise, so `B_seed = −P` (what
-# `ddp_seed` builds, ledger item 5) is the triangulation quiver up to reorientation
-# of basis cycles.
+# The decay rule fixes a *representative* of ±γ_e, not the physical charge. The
+# orientation signs ε that promote it to one — `γ_e^phys = ε_e·γ_e` — are the signed
+# frame of `src/signed_frame.jl`, solved here at construction. So the keystone
+# consistency of the bridge is the STRICT identity
 #
-# ── M4 finding (2026-07-16, discovered by this oracle) ─────────────────────────────
-# The all-decay orientation and the seed structure are compatible exactly on *tree
-# chambers* — chambers whose diagonal-adjacency graph is a tree (no triangle of the
-# triangulation has all three edges internal). There `−P(decay)` is finite type and
-# is the physical seed (cubic-verified, ledger item 5), though it may differ from the
-# fixed-counterclockwise-rule `triangulation_quiver` by a harmless sign conjugation.
-# On *cyclic chambers* (a fully internal triangle — generic for degree ≥ 5) the
-# decay-oriented pairing orients that quiver triangle acyclically, so `−P(decay)` is
-# cluster-INFINITE and cannot be a seed: the correct frame needs the Iwaki–Nakanishi
-# signed-flip conventions, deferred beyond M4 (decision 2026-07-16). `charge_basis`
-# therefore throws `ChamberError` on cyclic chambers; every polynomial has tree
-# chambers (e.g. the quintic's top chamber).
+#     P[i,j] == −ε_i ε_j·B[i,j],     B = triangulation_quiver(t).B,
+#
+# i.e. `signed_pairing(cb) == −B` exactly, and `B_seed = −signed_pairing` (what
+# `ddp_seed` builds, ledger item 5) is the triangulation quiver on the nose.
+#
+# ── this closed the M4 finding (M4b, 2026-07-19) ───────────────────────────────────
+# M4 checked only `|P| == |B|`, and that `abs` was exactly the slack hiding the
+# missing layer. With the uniform all-decay frame the seed structure survived only on
+# *tree chambers*; on a *cyclic chamber* (a triangle of the triangulation with all
+# three edges internal, generic for degree ≥ 5) the decay-oriented pairing orients
+# that quiver triangle acyclically, so `−P(decay)` is cluster-INFINITE and cannot be
+# a seed — `charge_basis` used to refuse outright. Solving for ε repairs it: the
+# cocycle condition around the quiver 3-cycle is a genuine constraint and it closes
+# in every chamber measured (see test_signed_frame.jl). `−P(decay)` remains
+# cluster-infinite there — that fact is kept as a regression test — but it is no
+# longer the seed.
 
 """
     ChargeBasis{F}
 
 The charge-lattice basis attached to an [`IdealTriangulation`](@ref): per diagonal a
 closed `contour` (decay-oriented, ledger item 4), its central charge
-`Z_j = ∮√Q ∈ central_charges`, and the integer intersection-pairing matrix
-`pairing[i,j] = ⟨γ_i, γ_j⟩`. Build with [`charge_basis`](@ref); feed to
-[`bridge_seed`](@ref) / [`voros_symbol`](@ref).
+`Z_j = ∮√Q ∈ central_charges`, the integer intersection-pairing matrix
+`pairing[i,j] = ⟨γ_i, γ_j⟩`, and the orientation `signs` of the signed frame
+(`γ_j^phys = signs[j] · γ_j`, see `src/signed_frame.jl`). Build with
+[`charge_basis`](@ref); feed to [`bridge_seed`](@ref) / [`voros_symbol`](@ref).
+
+`contours` and `central_charges` are the **decay-frame representatives** and are never
+reoriented — ledger item 4 stays literal, and so does the M5 orientation ledger. The
+physical objects are [`physical_charges`](@ref) and [`signed_pairing`](@ref).
 """
 struct ChargeBasis{F}
     problem::SchrodingerProblem
@@ -39,10 +47,36 @@ struct ChargeBasis{F}
     contours::Vector{Vector{Complex{F}}}
     central_charges::Vector{Complex{F}}
     pairing::Matrix{Int}
+    signs::Vector{Int}
 end
 
 n_charges(cb::ChargeBasis) = length(cb.contours)
 central_charges(cb::ChargeBasis) = cb.central_charges
+
+"""
+    signs(cb::ChargeBasis) -> Vector{Int}
+
+The orientation signs `ε` of the signed frame: `γ_j^phys = ε_j · γ_j`. See
+[`signed_frame`](@ref).
+"""
+signs(cb::ChargeBasis) = cb.signs
+
+"""
+    physical_charges(cb::ChargeBasis) -> Vector{Complex}
+
+The central charges of the *physical* cycles, `Z_j^phys = ε_j · Z_j`. These carry the
+BPS masses and wall phases; `central_charges` gives the decay-frame representatives.
+"""
+physical_charges(cb::ChargeBasis) = cb.signs .* cb.central_charges
+
+"""
+    signed_pairing(cb::ChargeBasis) -> Matrix{Int}
+
+The intersection pairing of the physical cycles, `ε_i ε_j ⟨γ_i, γ_j⟩`. This is the `P`
+of ledger item 5, so the seed is `B = −signed_pairing(cb)` ([`bridge_seed`](@ref)),
+and it equals `−triangulation_quiver(t).B` exactly (the tightened keystone).
+"""
+signed_pairing(cb::ChargeBasis) = cb.signs .* cb.pairing .* cb.signs'
 
 # winding number of a closed polygonal contour about z
 function _winding(verts::AbstractVector{Complex{F}}, z) where {F}
@@ -129,24 +163,20 @@ canonical order) a closed contour around its turning-point pair
 `Re(Z_j e^{-iθ_c}) < 0`), with central charges `Z_j = ∮√Q` and the intersection
 pairing `P[i,j] = ⟨γ_i, γ_j⟩` from [`intersection_pairing`](@ref).
 
-With `verify = true` (default) the keystone consistency of the bridge is enforced:
-the chamber must be a *tree chamber* (no triangle of `t` has all three edges
-internal — otherwise the decay frame is not a seed frame and [`ChamberError`](@ref)
-is thrown; pick a different `θ`, e.g. in the top chamber), and the numerical pairing
-must reproduce the combinatorial exchange matrix up to cycle reorientation,
-`abs.(P) == abs.(triangulation_quiver(t).B)` — a mismatch throws
-[`ContourError`](@ref).
+The orientation signs of the signed frame ([`signs`](@ref)) are solved from the
+pairing at construction; [`physical_charges`](@ref) and [`signed_pairing`](@ref) give
+the physical objects. **Every chamber is supported** — cyclic chambers included.
+
+With `verify = true` (default) the keystone consistency of the bridge is enforced in
+its strict form: there must exist `ε` with `P == −εBε` against
+`B = triangulation_quiver(t).B`, and `signed_pairing(cb) == −B` must then hold
+entrywise. A failure throws [`ContourError`](@ref) — either the magnitudes disagree
+(the numerical contours do not represent the combinatorial classes) or the sign
+cocycle does not close around a cycle of the quiver graph.
 """
 function charge_basis(prob::SchrodingerProblem, t::IdealTriangulation;
                       margin = nothing, n::Integer = 32, rtol = nothing,
                       verify::Bool = true)
-    if verify && any(tri -> all(e -> t.is_diagonal[e], tri), t.triangles)
-        throw(ChamberError(
-            "cyclic chamber: a triangle of the triangulation has all three edges " *
-            "internal, so the decay-oriented cycle basis is not a seed basis (the " *
-            "Iwaki–Nakanishi signed-flip frame is deferred beyond M4) — trace the " *
-            "Stokes graph at a θ in a tree chamber (the top chamber always is one)"))
-    end
     m = n_diagonals(t)
     F = _wkb_float(prob)
     contours = Vector{Vector{Complex{F}}}(undef, m)
@@ -172,22 +202,38 @@ function charge_basis(prob::SchrodingerProblem, t::IdealTriangulation;
         P[a, b] = κ
         P[b, a] = -κ
     end
-    if verify
-        B = triangulation_quiver(t).B
-        abs.(P) == abs.(B) || throw(ContourError(
-            "keystone mismatch: the intersection pairing of the decay-oriented " *
-            "cycles is P = $P, but the triangulation quiver demands |P| = |B| with " *
-            "B = $B — the numerical contours do not represent the combinatorial " *
-            "classes"))
+    # The signed frame (src/signed_frame.jl): ε with P = −εBε. Solving this IS the
+    # keystone check — it subsumes the M4-era `|P| == |B|` and strengthens it, since
+    # a solution exists only if the magnitudes agree edgewise AND the sign cocycle
+    # closes around every cycle of the quiver graph.
+    B = triangulation_quiver(t).B
+    ε = _solve_signs(P, B)
+    if ε === nothing
+        verify && throw(ContourError(
+            "keystone mismatch: no orientation ε solves P = −εBε with P = $P and " *
+            "B = $B — either the magnitudes disagree (the numerical contours do not " *
+            "represent the combinatorial classes) or the sign cocycle fails to " *
+            "close around a cycle of the quiver graph"))
+        ε = ones(Int, m)
     end
-    ChargeBasis{F}(prob, t, contours, charges, P)
+    if verify
+        ε .* P .* ε' == -B || throw(ContourError(
+            "keystone mismatch: the signed pairing is $(ε .* P .* ε') but the " *
+            "triangulation quiver demands −B = $(-B)"))
+    end
+    ChargeBasis{F}(prob, t, contours, charges, P, ε)
 end
 
 """
     bridge_seed(cb::ChargeBasis) -> ClusterAlgebras.Seed
 
 The principal-coefficient cluster seed of the charge basis — [`ddp_seed`](@ref) of its
-pairing matrix (`B = -P`, ledger item 5). Vertex `j` of the seed carries the cycle
-`cb.contours[j]`; its Voros symbol models the y-variable `y_j`.
+[`signed_pairing`](@ref) (`B = -P`, ledger item 5, applied to the *physical* cycles).
+
+Vertex `j` of the seed carries the physical cycle `ε_j · cb.contours[j]` with
+`ε = signs(cb)`, so its y-variable is `y_j = V_γ^{ε_j}` — the Voros symbol of the
+stored contour raised to `ε_j`. Feeding `voros_symbol(w, cb.contours[j])` to the DDP
+layer is therefore only correct where `ε_j == +1` (always true in the reference
+chamber, [`reference_theta`](@ref)); elsewhere the symbol must be inverted first.
 """
-bridge_seed(cb::ChargeBasis) = ddp_seed(cb.pairing)
+bridge_seed(cb::ChargeBasis) = ddp_seed(signed_pairing(cb))

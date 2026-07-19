@@ -137,12 +137,15 @@ function Base.show(io::IO, cb::ChargeBasis)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", cb::ChargeBasis)
-    print(io, "ChargeBasis — decay-oriented cycles of the triangulation diagonals")
+    print(io, "ChargeBasis — signed frame on the triangulation diagonals")
+    Zp = physical_charges(cb)
     for e in 1:n_charges(cb)
         print(io, "\n  γ", cb.triangulation.diagonal_tp_pair[e],
-              " : Z = ", _disp(cb.central_charges[e]))
+              " : ε = ", cb.signs[e] > 0 ? "+1" : "−1",
+              ", Z = ", _disp(Zp[e]))
+        cb.signs[e] < 0 && print(io, "  (decay rep. ", _disp(cb.central_charges[e]), ")")
     end
-    n_charges(cb) > 0 && print(io, "\n  pairing P = ", cb.pairing)
+    n_charges(cb) > 0 && print(io, "\n  signed pairing = ", signed_pairing(cb))
 end
 
 # -- BPSState / BPSSpectrum ----------------------------------------------------------

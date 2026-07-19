@@ -37,9 +37,16 @@
 #    (the opposite B-sign, i.e. the opposite mutation direction, fails by ≥ 10×;
 #    B = −P was measured, B = +P off by ~0.14 where −P matched at ~2e-5).
 # 6. Chamber ↔ MGS: with these conventions the charges of a maximal green sequence
-#    (ClusterAlgebras.ordered_c_vectors) list the chamber's BPS states in
-#    θ-DECREASING order of their saddle phases. Pinned by the cubic's two-state
-#    chamber (θ-increasing matches no MGS of the seed).
+#    (ClusterAlgebras.ordered_c_vectors) list the chamber's BPS states in the order
+#    their walls are crossed as θ DECREASES from the chamber's own θ₀ — i.e. by
+#    increasing `mod(θ₀ − θ_c, π)`. Pinned by the cubic's two-state chamber
+#    (the reverse order matches no MGS of the seed).
+#
+#    The θ₀ → π⁻ specialization of this is the plain "θ-decreasing order of the
+#    saddle phases" in which the item was originally pinned, and it is what the top
+#    (reference) chamber realizes. M4 used that absolute form everywhere, which is
+#    why it enumerated correctly in the top chamber and misordered elsewhere; the
+#    chamber-relative form (src/bps.jl `_sweep_chamber`) is the general statement.
 
 using Resurgence: borel, pade, lateral_sum
 

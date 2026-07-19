@@ -42,9 +42,11 @@ export Saddle, saddle_candidates, saddles, is_saddle, stokes_graph_family, centr
 export voros_value, ddp_transform, verify_ddp, verify_ddp_mutation, ddp_seed,
        intersection_pairing
 export IdealTriangulation, ideal_triangulation, triangulation_quiver, n_diagonals,
-       diagonals, n_marked_points, infinite_lines, ray_exit_angles
+       diagonals, n_marked_points, infinite_lines, ray_exit_angles, flip,
+       canonical_reorder
 export ChargeBasis, charge_basis, charge_contour, bridge_seed, n_charges,
-       central_charges
+       central_charges, signs, physical_charges, signed_pairing
+export signed_frame, verify_signed_frame, chamber_walls, reference_theta
 export BPSState, BPSSpectrum, bps_spectrum, n_states, charges, charge, phase
 export plot_stokes_graph, plot_triangulation
 
@@ -62,6 +64,7 @@ include("quantization.jl")
 include("double_well.jl")
 include("triangulation.jl")
 include("charge_lattice.jl")
+include("signed_frame.jl")
 include("bps.jl")
 include("show.jl")
 
@@ -107,6 +110,9 @@ end
         t = ideal_triangulation(stokes_graph(cubic; theta = 0.3))
         cb = charge_basis(cubic, t)
         bridge_seed(cb)
+        signs(cb); physical_charges(cb); signed_pairing(cb)
+        flip(t, 1)
+        chamber_walls(cubic)
         # the M5 spectral chain on a cheap Float64 harmonic well
         harm = SchrodingerProblem([0.0, 0.0, 1.0])
         spectral_cycles(harm, 1.0)

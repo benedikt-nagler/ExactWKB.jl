@@ -1,11 +1,12 @@
 # BPS spectra from maximal green sequences — the payoff of the M4 bridge.
 #
 # The spectrum of a polynomial problem is enumerated cluster-algebraically: the seed
-# of a (tree) chamber is `bridge_seed(charge_basis(...))`, and the physical maximal
-# green sequence is constructed *greedily in phase order* (ledger item 6 of
-# src/ddp.jl: the MGS charge order is the θ-decreasing order of the wall phases in
-# `[0, π)`): among the currently green vertices, mutate the one whose c-vector charge
-# `c` has the largest wall phase of `Z(c) = Σ c_j Z_j`. This produces THE physical
+# of a chamber is `bridge_seed(charge_basis(...))`, and the physical maximal green
+# sequence is constructed *greedily in phase order* (ledger item 6 of src/ddp.jl in
+# its chamber-relative form: walls are crossed as θ decreases from the chamber's θ₀,
+# so the MGS charge order is by increasing `mod(θ₀ − θ_c, π)`): among the currently
+# green vertices, mutate the one whose c-vector charge `c` has the wall phase of
+# `Z(c) = Σ c_j Z_j^phys` nearest below θ₀. This produces THE physical
 # sequence in `#states` mutations — no enumeration of all maximal green sequences
 # (A₄ already has hundreds). Two walls tied in phase are legal only when they
 # commute (the current exchange-matrix entry vanishes — e.g. the two disjoint wells
@@ -19,16 +20,18 @@
 # oracles live in test_bps.jl: Ω ≡ 1 in finite type, Zamolodchikov periodicity
 # h + 2, DT closure, chamber independence.
 #
-# ── M4 finding, part 2 (2026-07-16) ────────────────────────────────────────────────
-# The all-decay basis frame (ledger items 4/5, cubic-pinned) enumerates the physical
-# spectrum in the chambers of the cubic and quartic and in the *top chamber* of the
-# quintic, but NOT in every tree chamber: in the quintic's real-axis fan chamber
-# (θ ∈ (0, 0.103)) it yields a cluster-consistent but unphysical 6-state green
-# sequence, and the strict frame P == −B(triangulation) fails elsewhere too. The
-# correct per-chamber orientation rule is the Iwaki–Nakanishi signed-flip layer,
-# deferred with the cyclic chambers (decision 2026-07-16). Until then the saddle
-# cross-check is the gate: the default chamber search returns the first chamber that
-# passes it, and an explicit `theta` in an unsupported chamber throws `ChamberError`.
+# ── the signed frame closed both M4 findings (M4b, 2026-07-19) ─────────────────────
+# The M4 layer used the uniform all-decay frame and the *absolute* θ-decreasing order.
+# Both are top-chamber specializations, and both failed elsewhere: cyclic chambers had
+# no seed at all, and the quintic's real-axis fan chamber (θ ∈ (0, 0.103)) swept a
+# cluster-consistent but unphysical 6-state sequence against 7 saddles. The signed
+# frame (`src/signed_frame.jl`, ε from the keystone P = −εBε) and the chamber-relative
+# order fix both, independently of each other.
+#
+# So the saddle cross-check `_matches_saddles` changed meaning rather than code: it
+# was the *gate* that chose a chamber, and is now the *verification* of a frame that
+# should be correct by construction. A failure is a bug, not a chamber property — and
+# the default θ is simply the widest wall-free gap, no longer a search.
 
 """
     BPSState{F}
@@ -103,17 +106,23 @@ charges(sp::BPSSpectrum) = [s.charge for s in sp.states]
 
 central_charges(sp::BPSSpectrum) = [s.central_charge for s in sp.states]
 
-_is_tree_chamber(t::IdealTriangulation) =
-    !any(tri -> all(e -> t.is_diagonal[e], tri), t.triangles)
-
 # The greedy phase-ordered sweep on a chamber's charge basis. Returns the swept
 # states and the green sequence; with `verify` the sweep is checked to be a genuine
 # maximal green sequence with θ-decreasing phases and the Ω(γ) are attached.
+#
+# Ledger item 6 in its chamber-relative form: walls are crossed as θ DECREASES from
+# the chamber's θ₀, so the sweep order is by increasing `mod(θ₀ − θ_c, π)`. As
+# θ₀ → π⁻ this degenerates to the absolute θ-decreasing order in which item 6 was
+# originally pinned — the top chamber is that special case, which is why the M4-era
+# absolute rule worked there and nowhere else.
 function _sweep_chamber(cb::ChargeBasis{F}; verify::Bool) where {F}
     m = n_charges(cb)
     m == 0 && return BPSState{F}[], Int[]
     seed0 = bridge_seed(cb)
-    Zb = cb.central_charges
+    Zb = physical_charges(cb)
+    θ0 = F(cb.triangulation.theta)
+    # distance travelled downwards in θ from θ₀ to a wall at phase p (period π)
+    _rel(p) = mod(θ0 - p, F(π))
     tie_tol = 100 * sqrt(eps(F))
     seq = Int[]
     charges_swept = Vector{Vector{Int}}()
@@ -126,15 +135,16 @@ function _sweep_chamber(cb::ChargeBasis{F}; verify::Bool) where {F}
             "the greedy phase sweep did not close after 10000 mutations"))
         cs = [ClusterAlgebras.c_vector(current, k) for k in greens]
         Zs = [sum(c[j] * Zb[j] for j in 1:m) for c in cs]
-        ps = [_wall_phase(Z) for Z in Zs]
-        pmax = maximum(ps)
-        tied = [i for i in eachindex(greens) if ps[i] > pmax - tie_tol]
+        ps = [_rel(_wall_phase(Z)) for Z in Zs]     # θ travelled down from θ₀
+        pmin = minimum(ps)
+        tied = [i for i in eachindex(greens) if ps[i] < pmin + tie_tol]
         if length(tied) > 1
             B = current.quiver.B
             all(B[greens[a], greens[b]] == 0 for a in tied, b in tied if a != b) ||
                 throw(ChamberError(
                     "marginal stability: two non-commuting walls share the phase " *
-                    "θ_c ≈ $(Float64(pmax)) — perturb the potential or the energy"))
+                    "θ_c ≈ $(Float64(mod(θ0 - pmin, F(π)))) — perturb the potential " *
+                    "or the energy"))
         end
         i = tied[argmin([greens[j] for j in tied])]    # deterministic among commuting ties
         push!(seq, greens[i])
@@ -145,11 +155,12 @@ function _sweep_chamber(cb::ChargeBasis{F}; verify::Bool) where {F}
 
     omegas = fill(1, length(seq))
     if verify
-        ps = [_wall_phase(Z) for Z in zs]
-        all(ps[i + 1] ≤ ps[i] + tie_tol for i in 1:(length(ps) - 1)) ||
+        ps = [_rel(_wall_phase(Z)) for Z in zs]
+        all(ps[i + 1] ≥ ps[i] - tie_tol for i in 1:(length(ps) - 1)) ||
             throw(ChamberError(
-                "the swept wall phases are not θ-decreasing — the greedy sequence " *
-                "is not the physical chamber order"))
+                "the swept wall phases do not recede monotonically from θ₀ = " *
+                "$(Float64(θ0)) — the greedy sequence is not the physical chamber " *
+                "order (ledger item 6, chamber-relative form)"))
         cvs = try
             ClusterAlgebras.ordered_c_vectors(seed0, seq)
         catch err
@@ -191,24 +202,28 @@ end
                  rtol = nothing, verify = true, kwargs...) -> BPSSpectrum
 
 The BPS spectrum of `prob`, computed cluster-algebraically through the M4 bridge:
-trace the Stokes graph at `theta` (default: the largest wall-free gap carrying a
-tree chamber), build the [`ideal_triangulation`](@ref) → [`charge_basis`](@ref) →
+trace the Stokes graph at `theta` (default: the midpoint of the largest wall-free
+gap), build the [`ideal_triangulation`](@ref) → [`charge_basis`](@ref) →
 [`bridge_seed`](@ref), then construct the physical maximal green sequence greedily
-in θ-decreasing wall-phase order. Singularity positions of the Borel-plane walls
+in chamber-relative wall-phase order. Singularity positions of the Borel-plane walls
 are the returned central charges ``Z_γ``; the Stokes constants are the integer
 ``Ω(γ)·⟨γ,γ'⟩`` (verify numerically with [`verify_ddp`](@ref)).
 
+**Every chamber works.** With the signed frame (`src/signed_frame.jl`) the sweep is
+correct in cyclic chambers and in the tree chambers that the M4 layer got wrong, so
+the default `theta` is simply the most numerically comfortable chamber rather than a
+search for one that happens to be right, and any explicit `theta` off a wall is
+equally valid — the spectrum is chamber-independent.
+
 `margin`/`n`/`rtol` pass to [`charge_basis`](@ref), remaining `kwargs` to
 [`stokes_graph`](@ref)/[`saddles`](@ref). With `verify = true` (default) the wall
-phases are checked to be θ-decreasing, the greedy sequence is re-validated as a
-maximal green sequence (`ClusterAlgebras.ordered_c_vectors`), the DT invariants are
-attached from `ClusterAlgebras.omega`, and — the definitive physical gate — the
-state multiset (mass, wall phase) must reproduce the confirmed [`saddles`](@ref).
-With the default `theta` the wall-free θ-gaps are searched (largest first) for a
-tree chamber passing all of this; an explicit `theta` whose chamber fails throws
-[`ChamberError`](@ref) (see the M4 findings in this file and in
-`src/charge_lattice.jl`), as do a cyclic chamber, a non-commuting phase tie
-(marginal stability), and a sweep that fails to close.
+phases are checked to recede monotonically from `θ₀`, the greedy sequence is
+re-validated as a maximal green sequence (`ClusterAlgebras.ordered_c_vectors`), the
+DT invariants are attached from `ClusterAlgebras.omega`, and — the definitive
+physical gate — the state multiset (mass, wall phase) must reproduce the confirmed
+[`saddles`](@ref). A failure of that gate is now a bug rather than a property of the
+chamber, and throws [`ChamberError`](@ref), as do a non-commuting phase tie (marginal
+stability) and a sweep that fails to close.
 """
 function bps_spectrum(prob::SchrodingerProblem; theta = nothing, margin = nothing,
                       n::Integer = 32, rtol = nothing, verify::Bool = true, kwargs...)
@@ -221,10 +236,10 @@ function bps_spectrum(prob::SchrodingerProblem; theta = nothing, margin = nothin
         cb = charge_basis(prob, t; margin, n, rtol, verify)
         states, seq = _sweep_chamber(cb; verify)
         verify && !_matches_saddles(states, sads) && throw(ChamberError(
-            "the chamber at θ = $(Float64(θ0)) enumerates a cluster-consistent but " *
-            "unphysical green sequence: the basis orientation rule of this chamber " *
-            "needs the Iwaki–Nakanishi signed-flip layer (deferred beyond M4) — " *
-            "use the default chamber search"))
+            "the chamber at θ = $(Float64(θ0)) swept $(length(states)) states that " *
+            "do not reproduce the $(length(sads)) confirmed saddles in (mass, " *
+            "phase). With the signed frame every chamber should be physical, so " *
+            "this is an internal inconsistency, not a reason to pick another θ"))
         return BPSSpectrum{F}(states, seq, cb, θ0)
     end
 
@@ -235,28 +250,24 @@ function bps_spectrum(prob::SchrodingerProblem; theta = nothing, margin = nothin
         return BPSSpectrum{F}(BPSState{F}[], Int[], cb, θ0)
     end
 
+    # Any chamber is physical, so take the widest wall-free gap — the most comfortable
+    # θ to trace, not a search. (The M4 layer looped over gaps looking for one whose
+    # frame happened to be right; the signed frame makes that unnecessary.)
     phases = sort(unique([s.theta for s in saddle_candidates(prob)]))
     gaps = [(i == length(phases) ? phases[1] + F(π) - phases[end] :
              phases[i + 1] - phases[i], i) for i in eachindex(phases)]
-    sort!(gaps; rev = true)
-    for (gap, i) in gaps
-        gap > sqrt(eps(F)) || break
-        θ0 = mod(phases[i] + gap / 2, F(π))
-        result = try
-            t = ideal_triangulation(stokes_graph(prob; theta = θ0, kwargs...))
-            _is_tree_chamber(t) || continue
-            cb = charge_basis(prob, t; margin, n, rtol, verify)
-            (cb, _sweep_chamber(cb; verify)...)
-        catch err
-            err isa ExactWKBError && continue
-            rethrow()
-        end
-        cb, states, seq = result
-        (!verify || _matches_saddles(states, sads)) &&
-            return BPSSpectrum{F}(states, seq, cb, θ0)
-    end
-    throw(ChamberError(
-        "no wall-free θ-gap carries a chamber that reproduces the confirmed saddle " *
-        "spectrum — the potential needs the deferred signed-flip layer, or its " *
-        "saddles are numerically marginal"))
+    gap, i = maximum(gaps)
+    gap > sqrt(eps(F)) || throw(ChamberError(
+        "the walls of this potential leave no θ-gap wider than $(sqrt(eps(F))): its " *
+        "saddles are numerically marginal, so no chamber can be traced generically"))
+    θ0 = mod(phases[i] + gap / 2, F(π))
+    t = ideal_triangulation(stokes_graph(prob; theta = θ0, kwargs...))
+    cb = charge_basis(prob, t; margin, n, rtol, verify)
+    states, seq = _sweep_chamber(cb; verify)
+    verify && !_matches_saddles(states, sads) && throw(ChamberError(
+        "the chamber at θ = $(Float64(θ0)) swept $(length(states)) states that do " *
+        "not reproduce the $(length(sads)) confirmed saddles in (mass, phase) — " *
+        "with the signed frame this is an internal inconsistency, not a chamber to " *
+        "skip over"))
+    BPSSpectrum{F}(states, seq, cb, θ0)
 end

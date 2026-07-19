@@ -50,7 +50,10 @@ turning points carrying the two adjacent triangles), then boundary edges sorted 
 their endpoints — and `edge_endpoints[e]` gives edge `e`'s marked-point pair.
 `triangles[s]` lists the three edges of the triangle dual to turning point
 `triangle_tp[s]`, counterclockwise. The quiver on the diagonals is
-[`triangulation_quiver`](@ref).
+[`triangulation_quiver`](@ref). `theta` records the phase of the Stokes graph this
+triangulation came from — provenance, so the chamber is recoverable downstream
+(`Float64` because graph topology is Float64 by design); [`flip`](@ref) carries it
+through unchanged.
 """
 struct IdealTriangulation
     n_marked::Int
@@ -60,6 +63,7 @@ struct IdealTriangulation
     triangle_tp::Vector{Int}
     diagonal_tp_pair::Vector{Tuple{Int,Int}}
     marked_angles::Vector{Float64}
+    theta::Float64
 end
 
 """
@@ -331,7 +335,7 @@ function ideal_triangulation(g::StokesGraph{F}) where {F}
     end
 
     IdealTriangulation(n + 2, edge_endpoints, is_diagonal, triangles, collect(1:n),
-                       diagonal_tp_pair, marked_angles)
+                       diagonal_tp_pair, marked_angles, Float64(g.theta))
 end
 
 # -- the quiver ----------------------------------------------------------------------
@@ -343,11 +347,12 @@ The adjacency quiver of the triangulation: one vertex per diagonal (in the canon
 order of `t`, labelled `"γ(i,j)"` by the turning-point pair), and for each triangle
 one arrow between each counterclockwise-consecutive pair of its diagonals. Internal
 triangles always come out as oriented 3-cycles, so this quiver is finite type
-`A_{d−1}` for every chamber. It agrees with the physical seed quiver `−P` of
-[`charge_basis`](@ref) up to reorientation of the basis cycles
-(`abs.(B) == abs.(P)`, the keystone consistency check) — on tree chambers both are
-valid seeds in the same mutation class; see the M4 finding recorded in
-`src/charge_lattice.jl`.
+`A_{d−1}` for every chamber.
+
+It equals the physical seed quiver of [`charge_basis`](@ref) **exactly**:
+`B == −signed_pairing(cb)`, the tightened keystone. (The M4 layer could only assert
+`abs.(B) == abs.(P)` against the raw decay pairing; the signed frame of
+`src/signed_frame.jl` supplies the missing orientation.)
 """
 function triangulation_quiver(t::IdealTriangulation)
     m = n_diagonals(t)
@@ -362,4 +367,146 @@ function triangulation_quiver(t::IdealTriangulation)
     end
     labels = ["γ($(p[1]),$(p[2]))" for p in t.diagonal_tp_pair]
     ClusterAlgebras.Quiver(B, m, ones(Int, m), labels)
+end
+
+# -- flips ---------------------------------------------------------------------------
+#
+# Crossing a wall in θ flips the diagonals whose `diagonal_tp_pair` is a saddle pair of
+# that wall (one diagonal generically; several commuting ones at a degenerate wall) and
+# mutates the quiver at those vertices. `flip` performs the move combinatorially, so a
+# chamber walk costs no Stokes traces.
+#
+# Edge indices are deliberately PRESERVED — the flipped diagonal keeps index `k`, so
+# `triangulation_quiver(flip(t, k)).B == mutate(triangulation_quiver(t), k).B` is an
+# index-aligned identity. The canonical order of `ideal_triangulation` (diagonals
+# sorted by `diagonal_tp_pair`) is generally a different indexing, because the flip
+# permutes the labels of two of the four quad sides; `canonical_reorder` applies that
+# permutation when a flipped triangulation must be compared with a freshly traced one.
+
+# the marked point shared by two edges (the corner they meet at)
+function _shared_corner(t::IdealTriangulation, e1::Int, e2::Int)
+    a, b = t.edge_endpoints[e1]
+    c, d = t.edge_endpoints[e2]
+    a == c || a == d ? a : (b == c || b == d ? b :
+        throw(NonGenericGraph("edges $e1 and $e2 of a triangle share no corner")))
+end
+
+"""
+    flip(t::IdealTriangulation, k::Integer; direction = 1) -> IdealTriangulation
+
+The ideal triangulation obtained by flipping diagonal `k`: the two triangles adjacent
+to `k` form a quad, and `k` is replaced by the quad's other diagonal. Edge indices are
+preserved (the new diagonal keeps index `k`), so the quiver mutates at vertex `k` —
+`triangulation_quiver(flip(t, k)).B == ClusterAlgebras.mutate(triangulation_quiver(t), k).B`.
+
+`direction` is the sense in which the wall is crossed: `+1` for increasing `θ`, `-1`
+for decreasing. It is *not* redundant — the Stokes graph rotates with `θ`, so the two
+senses reconnect the collapsing strip oppositely and exchange which of the two new
+triangles is dual to which turning point. `flip(flip(t, k), k; direction = -1) == t`.
+
+`diagonal_tp_pair` is recomputed: the flipped diagonal keeps its own turning-point
+pair (the strip re-forms between the same two turning points), while two of the quad's
+four sides swap which turning point borders them. `theta` is carried through unchanged
+— it records where the triangulation was traced, not where the flip put it. Use
+[`canonical_reorder`](@ref) to compare the result with a freshly traced triangulation.
+"""
+function flip(t::IdealTriangulation, k::Integer; direction::Integer = 1)
+    (1 ≤ k ≤ length(t.edge_endpoints) && t.is_diagonal[k]) || throw(
+        Resurgence.InvalidArgument(
+            "flip: edge $k is not a diagonal of the triangulation (diagonals are " *
+            "$(diagonals(t)))"))
+    direction in (-1, 1) || throw(
+        Resurgence.InvalidArgument("flip: direction must be ±1, got $direction"))
+
+    adj = findall(tri -> k in tri, t.triangles)
+    length(adj) == 2 || throw(NonGenericGraph(
+        "diagonal $k borders $(length(adj)) triangles, expected 2"))
+    s1, s2 = adj
+    u, v = t.edge_endpoints[k]
+
+    # the apex of each adjacent triangle: the corner where its two non-`k` edges meet
+    others(s) = Tuple(e for e in t.triangles[s] if e != k)
+    o1, o2 = others(s1)
+    o3, o4 = others(s2)
+    p = _shared_corner(t, o1, o2)
+    q = _shared_corner(t, o3, o4)
+
+    # orient the quad counterclockwise as (u, p, v, q): marked points are labelled
+    # counterclockwise, so the apex lying strictly between u and v comes second.
+    if !(u < p < v)
+        s1, s2 = s2, s1
+        p, q = q, p
+        (o1, o2), (o3, o4) = (o3, o4), (o1, o2)
+    end
+
+    # name the four quad sides by the corners they join
+    has(e, x) = x in t.edge_endpoints[e]
+    e_up = has(o1, u) ? o1 : o2          # u—p
+    e_pv = e_up == o1 ? o2 : o1          # p—v
+    e_vq = has(o3, v) ? o3 : o4          # v—q
+    e_qu = e_vq == o3 ? o4 : o3          # q—u
+
+    endpoints = copy(t.edge_endpoints)
+    endpoints[k] = (min(p, q), max(p, q))
+
+    # the two new triangles, counterclockwise: (u, p, q) and (p, v, q)
+    rotate(e) = (shift = argmin(collect(e)) - 1;
+                 ntuple(i -> e[mod1(i + shift, 3)], 3))
+    triangles = copy(t.triangles)
+    # `triangle_tp` is unchanged — each slot keeps its turning point — so the handedness
+    # of the reconnection is expressed by WHICH slot each new triangle lands in. Crossing
+    # the wall towards increasing θ sends the u-side triangle to the slot whose apex was
+    # p; crossing the other way sends it to the slot whose apex was q. Pinned in both
+    # senses by `canonical_reorder(flip(t, k; direction)) == t′` against a re-traced
+    # neighbouring chamber, at every wall of the cubic/quartic/quintic fixtures.
+    a_slot, b_slot = direction == 1 ? (s1, s2) : (s2, s1)
+    triangles[a_slot] = rotate((e_up, k, e_qu))
+    triangles[b_slot] = rotate((e_pv, e_vq, k))
+    tp_pair = _diagonal_tp_pairs(endpoints, t.is_diagonal, triangles, t.triangle_tp)
+
+    IdealTriangulation(t.n_marked, endpoints, t.is_diagonal, triangles, t.triangle_tp,
+                       tp_pair, t.marked_angles, t.theta)
+end
+
+# a diagonal's turning-point pair = the turning points of the two triangles it borders
+function _diagonal_tp_pairs(endpoints, is_diagonal, triangles, triangle_tp)
+    pairs = Tuple{Int,Int}[]
+    for e in eachindex(endpoints)
+        is_diagonal[e] || continue
+        tps = sort!([triangle_tp[s] for s in eachindex(triangles) if e in triangles[s]])
+        length(tps) == 2 || throw(NonGenericGraph(
+            "diagonal $e borders $(length(tps)) triangles, expected 2"))
+        push!(pairs, (tps[1], tps[2]))
+    end
+    pairs
+end
+
+"""
+    canonical_reorder(t::IdealTriangulation) -> (IdealTriangulation, Vector{Int})
+
+Re-index the edges of `t` into the canonical order of [`ideal_triangulation`](@ref) —
+diagonals first sorted by `diagonal_tp_pair`, then boundary edges sorted by endpoints
+— and return the reordered triangulation together with the permutation `perm`, where
+`perm[new] = old`. A freshly traced triangulation is already canonical; the output of
+[`flip`](@ref) generally is not.
+"""
+function canonical_reorder(t::IdealTriangulation)
+    diag = findall(t.is_diagonal)
+    pair_of = Dict(e => p for (e, p) in zip(diag, t.diagonal_tp_pair))
+    diag = sort(diag; by = e -> pair_of[e])
+    bdry = sort(findall(!, t.is_diagonal); by = e -> t.edge_endpoints[e])
+    perm = vcat(diag, bdry)
+    new_id = zeros(Int, length(perm))
+    for (i, e) in enumerate(perm)
+        new_id[e] = i
+    end
+    triangles = map(t.triangles) do tri
+        e = map(x -> new_id[x], collect(tri))
+        shift = argmin(e) - 1
+        ntuple(i -> e[mod1(i + shift, 3)], 3)
+    end
+    tri_out = IdealTriangulation(t.n_marked, t.edge_endpoints[perm], t.is_diagonal,
+                                 triangles, t.triangle_tp,
+                                 [pair_of[e] for e in diag], t.marked_angles, t.theta)
+    tri_out, perm
 end

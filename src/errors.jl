@@ -121,13 +121,22 @@ Base.showerror(io::IO, e::QuantizationError) = print(io, "QuantizationError: ", 
 """
     ChamberError(msg)
 
-Thrown when a chamber cannot carry the M4 cluster machinery: by
-[`charge_basis`](@ref) for a *cyclic chamber* (a triangle of the triangulation with
-all three edges internal, where the decay-oriented basis is not a seed basis — pick a
-θ in a tree chamber instead), and by [`bps_spectrum`](@ref) when no valid chamber
-ordering exists (two saddle phases coincide within tolerance — a marginal-stability
-wall, perturb the potential or the energy — or the greedy θ-decreasing mutation
-sequence fails to close into a maximal green sequence).
+Thrown when a chamber cannot carry the cluster machinery. Since the signed frame
+(`src/signed_frame.jl`) every chamber is supported, so this now signals a genuine
+obstruction rather than an unimplemented case:
+
+  * by [`bps_spectrum`](@ref) / `_sweep_chamber`, when two *non-commuting* saddle
+    phases coincide within tolerance (marginal stability — perturb the potential or
+    the energy), when the greedy sweep fails to close into a maximal green sequence,
+    or when the swept states fail to reproduce the confirmed [`saddles`](@ref)
+    (an internal inconsistency, not a reason to try another θ);
+  * by [`reference_theta`](@ref), when the top chamber `(θ_max, π)` is too narrow to
+    trace generically, so the frame has no reference chamber to pin `ε ≡ +1`;
+  * by [`verify_signed_frame`](@ref), when a wall's simultaneously flipped diagonals
+    do not commute in the quiver.
+
+A keystone failure is a [`ContourError`](@ref), not this — it says the numerical
+contours do not represent the combinatorial classes.
 """
 struct ChamberError <: ExactWKBError
     msg::String
