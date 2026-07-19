@@ -1,7 +1,7 @@
 # Charge-lattice oracles. The keystone consistency: the numerically measured
 # intersection pairing of the decay-oriented cycles reproduces the combinatorial
 # triangulation quiver up to cycle reorientation (|P| == |B|), and −P is a
-# finite-type exchange matrix of the same Cartan type — with strict equality
+# finite-type exchange matrix of the same Cartan type - with strict equality
 # P == −B realized in the quintic's top chamber. The cubic values regress against
 # the hand-built contours of test_ddp.jl, which pinned the conventions.
 
@@ -29,7 +29,7 @@ import ClusterAlgebras
         @test cbc.pairing == [0 -κ; κ 0]
         # ledger item 5 on the automatic basis: the seed's B is -P
         seed = bridge_seed(cbc)
-        @test seed.quiver.B[1:2, 1:2] == -cbc.pairing
+        @test seed.quiver.B[1:2, 1:2] == -signed_pairing(cbc)
         @test ClusterAlgebras.cmatrix(seed) == [1 0; 0 1]
         @test ClusterAlgebras.cartan_type(ClusterAlgebras.Quiver(-cbc.pairing)) == (:A, 2)
     end
@@ -49,7 +49,7 @@ import ClusterAlgebras
             @test ClusterAlgebras.cartan_type(ClusterAlgebras.Quiver(-cb.pairing)) == ct
             # every basis cycle decays along its own wall (ledger item 4): each Voros
             # symbol built on it is a legal wall symbol. Numerically-real Z (wall at
-            # θ_c = 0) is resolved by the real part — the same tolerance rule as the
+            # θ_c = 0) is resolved by the real part - the same tolerance rule as the
             # production orientation.
             for Z in central_charges(cb)
                 tol = sqrt(eps(Float64)) * (1 + abs(Z))
@@ -78,15 +78,22 @@ import ClusterAlgebras
         @test cb.pairing == -triangulation_quiver(t).B
     end
 
-    @testset "cyclic chambers are refused (M4 finding 2026-07-16)" begin
+    @testset "cyclic chambers: the signed frame repairs the M4 finding" begin
         prob = SchrodingerProblem([-0.5, -1.0, 0.0, 0.0, 0.0, 1.0])
         t = ideal_triangulation(stokes_graph(prob; theta = 0.542))
         @test any(tri -> all(e -> t.is_diagonal[e], tri), t.triangles)
-        @test_throws ChamberError charge_basis(prob, t)
-        # the raw decay-frame data stays probe-able, and realizes the finding:
-        # −P(decay) is NOT finite type there
-        cb = charge_basis(prob, t; verify = false)
+        # the M4 finding, kept as a record: the RAW decay frame is cluster-infinite
+        # there, which is exactly why the uniform decay rule could not be a seed frame
+        cb = charge_basis(prob, t)
         @test !ClusterAlgebras.is_finite_type(ClusterAlgebras.Quiver(-cb.pairing))
+        # ... and the signed frame repairs it: the cocycle closes and the signed
+        # pairing is the triangulation quiver on the nose
+        @test signs(cb) == [1, 1, -1, -1] || signs(cb) == -[1, 1, -1, -1]
+        @test signed_pairing(cb) == -triangulation_quiver(t).B
+        @test ClusterAlgebras.is_finite_type(
+            ClusterAlgebras.Quiver(-signed_pairing(cb)))
+        @test ClusterAlgebras.cartan_type(
+            ClusterAlgebras.Quiver(-signed_pairing(cb))) == (:A, 4)
     end
 
     @testset "precision from the caller (BigFloat)" begin
@@ -109,7 +116,7 @@ import ClusterAlgebras
         # a doctored triangulation whose combinatorial B has empty support
         tbad = IdealTriangulation(tc.n_marked, tc.edge_endpoints, tc.is_diagonal,
                                   [(1, 3, 4), (2, 5, 6), (3, 6, 7)], tc.triangle_tp,
-                                  tc.diagonal_tp_pair, tc.marked_angles)
+                                  tc.diagonal_tp_pair, tc.marked_angles, tc.theta)
         @test_throws ContourError charge_basis(cubic, tbad)
     end
 end

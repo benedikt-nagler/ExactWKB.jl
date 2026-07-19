@@ -1,6 +1,6 @@
 # Triangulation oracles: a generic degree-d Stokes graph triangulates a (d+2)-gon
-# (Iwaki–Nakanishi), so the quiver type must be A_{d−1} — Airy → rank 0, harmonic → A₁,
-# cubic → A₂, quartic double well → A₃, quintic → A₄ — with all combinatorial
+# (Iwaki–Nakanishi), so the quiver type must be A_{d−1} - Airy → rank 0, harmonic → A₁,
+# cubic → A₂, quartic double well → A₃, quintic → A₄ - with all combinatorial
 # invariants (marked points d+2, triangles d, diagonals d−1, regions 2d+1) exact, the
 # triangulation constant on chambers, and a wall crossing acting as one flip = one
 # quiver mutation.
@@ -83,11 +83,18 @@ end
         @test triangulation_quiver(ta).B == triangulation_quiver(tb).B
     end
 
-    # Crossing the wall of the saddle (i, j) flips exactly one diagonal — the one dual
-    # to the collapsing strip, which reconnects the SAME turning-point pair on the
-    # other side (the two adjacent triangles are the same two turning points before and
-    # after). So the diagonal ↔ turning-point-pair labelling matches the two chambers
-    # vertex by vertex, and the flip is the quiver mutation at the crossed pair.
+    # Crossing the wall of the saddle (i, j) flips the diagonal dual to the collapsing
+    # strip, which reconnects the SAME turning-point pair on the other side (the two
+    # adjacent triangles are the same two turning points before and after) - so the
+    # crossed diagonal keeps its label, and the flip is the quiver mutation there.
+    #
+    # The labelling does NOT in general match vertex by vertex across the wall: two of
+    # the four quad sides swap which turning point borders them, so their labels change
+    # and the canonical order (diagonals sorted by `diagonal_tp_pair`) permutes. The
+    # rank-2 cubic case below cannot see this - at rank 2, μ₁ and μ₂ give the same B.
+    # `canonical_reorder(flip(t, k)) == t′` in test_signed_frame.jl is the oracle that
+    # pins the permutation, and a degenerate wall (several saddles at one θ_c) flips
+    # several commuting diagonals at once.
     @testset "flip = mutation across the θ_c = 0 wall (cubic)" begin
         prob = SchrodingerProblem([0.0, -1.0, 0.0, 1.0])
         tp = ideal_triangulation(stokes_graph(prob; theta = 0.15))
@@ -118,6 +125,45 @@ end
             j == k && continue
             @test ClusterAlgebras.mutate(triangulation_quiver(tp), j).B != Bm
         end
+    end
+
+    @testset "combinatorial flip" begin
+        prob = SchrodingerProblem([-0.5, -1.0, 0.0, 0.0, 0.0, 1.0])   # quintic, A₄
+        t = ideal_triangulation(stokes_graph(prob; theta = 3.09))
+
+        # flipping back the way you came is the identity, and the flip is index-aligned
+        # with the quiver mutation. Re-crossing in the SAME sense is not the identity:
+        # it exchanges the two quad triangles' turning points (see `flip`'s docstring).
+        for k in diagonals(t)
+            f = flip(t, k)
+            back = flip(f, k; direction = -1)
+            @test triangulation_quiver(f).B ==
+                  ClusterAlgebras.mutate(triangulation_quiver(t), k).B
+            @test back.edge_endpoints == t.edge_endpoints
+            @test back.triangles == t.triangles
+            @test back.diagonal_tp_pair == t.diagonal_tp_pair
+            @test flip(f, k).triangles != t.triangles
+            # only the flipped diagonal moves; it keeps its own turning-point pair
+            @test f.edge_endpoints[setdiff(1:end, k)] ==
+                  t.edge_endpoints[setdiff(1:end, k)]
+            @test f.diagonal_tp_pair[k] == t.diagonal_tp_pair[k]
+            @test f.is_diagonal == t.is_diagonal
+            @test f.theta == t.theta          # provenance is carried, not recomputed
+            # every edge is still used by exactly two triangles (diagonal) or one
+            for e in eachindex(f.edge_endpoints)
+                @test count(tri -> e in tri, f.triangles) == (f.is_diagonal[e] ? 2 : 1)
+            end
+        end
+
+        # canonical_reorder is the identity on a freshly traced triangulation
+        tc, perm = canonical_reorder(t)
+        @test perm == 1:length(t.edge_endpoints)
+        @test tc.edge_endpoints == t.edge_endpoints
+        @test tc.triangles == t.triangles
+
+        @test_throws Resurgence.InvalidArgument flip(t, 0)
+        @test_throws Resurgence.InvalidArgument flip(t, n_diagonals(t) + 1)  # boundary
+        @test_throws Resurgence.InvalidArgument flip(t, 1; direction = 0)
     end
 
     @testset "non-generic graphs are refused" begin
