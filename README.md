@@ -104,7 +104,7 @@ with continuous branch tracking of $\sqrt{Q}$; `encircling_contour` builds a cyc
 pair of turning points. `voros_symbol` assembles the resulting series, with the classical
 period stored separately from the quantum corrections.
 
-**Stokes graphs.** `stokes_graph` traces the lines $\operatorname{Im}(e^{-i\theta}\int\sqrt{Q}) = 0$
+**Stokes graphs.** `stokes_graph` traces the lines $\mathrm{Im}(e^{-i\theta}\int\sqrt{Q}) = 0$
 using an augmented state $(z, \sqrt{Q})$, which avoids discrete branch choices altogether.
 `finite_lines`, `edges` and `topology_signature` describe the result combinatorially, and
 `stokes_graph_family` sweeps $\theta$. `saddles` finds the saddle connections — the special
@@ -158,17 +158,6 @@ plot_triangulation(g, t)             # the dual triangulation on top of the grap
 summation, transseries and alien calculus used here.
 [ClusterAlgebras.jl](https://github.com/benedikt-nagler/ClusterAlgebras.jl) provides quivers,
 seed mutation, green sequences and DT invariants.
-
-## References
-
-- A. Voros, *The return of the quartic oscillator: the complex WKB method*, Ann. Inst. H. Poincaré A **39** (1983), 211–338.
-- E. Delabaere, H. Dillinger, F. Pham, *Résurgence de Voros et périodes des courbes hyperelliptiques*, Ann. Inst. Fourier **43** (1993), 163–199.
-- J. Zinn-Justin, U. D. Jentschura, *Multi-instantons and exact results I, II*, Ann. Phys. **313** (2004), 197–267, 269–325.
-- T. Kawai, Y. Takei, *Algebraic Analysis of Singular Perturbation Theory*, Transl. Math. Monogr. **227**, AMS (2005).
-- D. Gaiotto, G. W. Moore, A. Neitzke, *Wall-crossing, Hitchin systems, and the WKB approximation*, Adv. Math. **234** (2013), 239–403.
-- G. V. Dunne, M. Ünsal, *Uniform WKB, multi-instantons, and resurgent trans-series*, Phys. Rev. D **89** (2014), 105009.
-- K. Iwaki, T. Nakanishi, *Exact WKB analysis and cluster algebras*, J. Phys. A **47** (2014), 474009.
-- T. Bridgeland, I. Smith, *Quadratic differentials as stability conditions*, Publ. Math. IHÉS **121** (2015), 155–278.
 
 ## License
 
