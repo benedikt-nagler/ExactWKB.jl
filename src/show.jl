@@ -1,4 +1,4 @@
-# Compact and `text/plain` display for the public types. Kept terse — a Stokes graph
+# Compact and `text/plain` display for the public types. Kept terse - a Stokes graph
 # never dumps its traced polylines, a Voros symbol defers to its FormalSeries.
 
 # round a real/complex to a few significant digits for readable display
@@ -40,7 +40,7 @@ function Base.show(io::IO, w::WKBExpansion)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", w::WKBExpansion)
-    print(io, "WKBExpansion — all-orders WKB (Riccati) solution\n",
+    print(io, "WKBExpansion - all-orders WKB (Riccati) solution\n",
           "  order      : ", w.order, "  (S₋₁ … S", _sub(w.order), ")\n",
           "  arithmetic : ", w.arithmetic, "\n  potential  : ", w.prob)
 end
@@ -52,7 +52,7 @@ function Base.show(io::IO, vs::VorosSymbol)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", vs::VorosSymbol)
-    print(io, "VorosSymbol — quantum period ∮ S dz\n",
+    print(io, "VorosSymbol - quantum period ∮ S dz\n",
           "  classical v₋₁ = ", _disp(classical_period(vs)), "\n",
           "  quantum series: ", quantum_series(vs))
 end
@@ -65,7 +65,7 @@ function Base.show(io::IO, c::SpectralCycle)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", c::SpectralCycle)
-    print(io, "SpectralCycle — ", c.kind === :well ? "classically allowed (well)" :
+    print(io, "SpectralCycle - ", c.kind === :well ? "classically allowed (well)" :
           "forbidden (barrier/tunneling)", " period cycle\n",
           "  turning points : ", _disp(c.left), " ↔ ", _disp(c.right), "\n",
           "  contour        : ", length(c.contour), "-gon")
@@ -137,7 +137,7 @@ function Base.show(io::IO, cb::ChargeBasis)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", cb::ChargeBasis)
-    print(io, "ChargeBasis — signed frame on the triangulation diagonals")
+    print(io, "ChargeBasis - signed frame on the triangulation diagonals")
     Zp = physical_charges(cb)
     for e in 1:n_charges(cb)
         print(io, "\n  γ", cb.triangulation.diagonal_tp_pair[e],
@@ -160,7 +160,7 @@ function Base.show(io::IO, sp::BPSSpectrum)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sp::BPSSpectrum)
-    print(io, "BPSSpectrum — ", n_states(sp), " BPS states (chamber θ₀ = ",
+    print(io, "BPSSpectrum - ", n_states(sp), " BPS states (chamber θ₀ = ",
           _disp(sp.theta0), ", θ-decreasing)")
     for s in sp.states
         print(io, "\n  ", rpad(string(s.charge), 4 + 3 * length(s.charge)),
@@ -179,6 +179,20 @@ function Base.show(io::IO, sol::TBASolution)
     print(io, "TBASolution(", n_states(sol.system), " states, ",
           length(sol.grid), "-point grid, ", sol.iterations,
           " sweeps, residual ", _disp(sol.residual), ")")
+end
+
+# -- SeibergWittenSU2 --------------------------------------------------------------
+
+function Base.show(io::IO, sw::SeibergWittenSU2)
+    print(io, "SeibergWittenSU2(Λ = ", _disp(dynamical_scale(sw)), ")")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", sw::SeibergWittenSU2)
+    s = sw_singularities(sw)
+    print(io, "SeibergWittenSU2 - pure SU(2) N=2 Seiberg–Witten geometry\n",
+          "  Λ            : ", _disp(dynamical_scale(sw)), "\n",
+          "  singularities: monopole u = ", _disp(s.monopole),
+          ", dyon u = ", _disp(s.dyon))
 end
 
 # subscript helper for small non-negative integers

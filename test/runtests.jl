@@ -27,6 +27,8 @@ include("diagonalization.jl")   # test-side eigenvalue oracle (not package code)
     include("test_signed_frame.jl")
     include("test_bps.jl")
     include("test_tba.jl")
+    include("test_sw_curve.jl")
+    include("test_sw_bps.jl")
     include("test_show.jl")
     include("test_makie_ext.jl")
 end

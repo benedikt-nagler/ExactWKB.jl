@@ -7,11 +7,11 @@ Iwaki–Nakanishi normalization) into the objects of exact WKB analysis: turning
 points, the all-orders WKB (Riccati) recursion, quantum periods and Voros symbols,
 and Stokes graphs with their saddle (BPS) data.
 
-It depends on `Resurgence.jl` (the resurgence foundation — Borel/Padé/Laplace
+It depends on `Resurgence.jl` (the resurgence foundation - Borel/Padé/Laplace
 summation of the Voros series) and on `ClusterAlgebras.jl` (the cluster core, live
 since the DDP layer: Voros wall-crossing = y-mutation, see `src/ddp.jl`).
 Resurgence names are **not** re-exported, and
-AbstractAlgebra ring elements never leak into the public API — public types expose
+AbstractAlgebra ring elements never leak into the public API - public types expose
 plain numbers and `Resurgence.FormalSeries`.
 """
 module ExactWKB
@@ -25,7 +25,7 @@ import ClusterAlgebras
 
 export ExactWKBError, InvalidPotential, UnsupportedTurningPoint, ContourError,
        TracingFailed, NonGenericGraph, ChamberError, CoalescentTurningPoints,
-       QuantizationError, TBAError
+       QuantizationError, TBAError, PeriodError
 export SpectralCycle, spectral_cycles, quantum_period, kind, endpoints
 export quantization_condition, spectral_determinant, wkb_eigenvalue
 export perturbative_b, instanton_a, verify_zjj, energy_splitting
@@ -49,6 +49,9 @@ export ChargeBasis, charge_basis, charge_contour, bridge_seed, n_charges,
 export signed_frame, verify_signed_frame, chamber_walls, reference_theta
 export BPSState, BPSSpectrum, bps_spectrum, n_states, charges, charge, phase
 export TBASystem, TBASolution, tba_system, solve_tba, n_iterations, residual
+export SeibergWittenSU2, sw_periods, quantum_sw_periods, sw_singularities,
+       sw_monodromy, dynamical_scale, continue_periods, ms_wall, sw_chamber
+export su2_bps_quiver, su2_bps_states, verify_su2_wall_crossing
 export plot_stokes_graph, plot_triangulation
 
 include("errors.jl")
@@ -68,6 +71,8 @@ include("charge_lattice.jl")
 include("signed_frame.jl")
 include("bps.jl")
 include("tba.jl")
+include("sw_curve.jl")
+include("sw_bps.jl")
 include("show.jl")
 
 """
@@ -75,11 +80,11 @@ include("show.jl")
     plot_stokes_graph(gs::AbstractVector{<:StokesGraph}; kwargs...)
 
 Plot a Stokes graph (turning points, traced lines, highlighted saddles) or a θ-family
-of them. Provided by the Makie extension — load a backend first (`using CairoMakie` or
+of them. Provided by the Makie extension - load a backend first (`using CairoMakie` or
 `using GLMakie`). Without one this throws a hint.
 """
 function plot_stokes_graph(args...; kwargs...)
-    error("plot_stokes_graph requires a Makie backend — run `using CairoMakie` " *
+    error("plot_stokes_graph requires a Makie backend - run `using CairoMakie` " *
           "(or `using GLMakie`) to load the ExactWKB Makie extension.")
 end
 
@@ -88,11 +93,11 @@ end
 
 Plot the Stokes graph with its dual ideal triangulation overlaid: the boundary circle
 with the marked points at the asymptotic directions, and the diagonals (labelled by
-their turning-point pairs) as chords. Provided by the Makie extension — load a
+their turning-point pairs) as chords. Provided by the Makie extension - load a
 backend first (`using CairoMakie` or `using GLMakie`).
 """
 function plot_triangulation(args...; kwargs...)
-    error("plot_triangulation requires a Makie backend — run `using CairoMakie` " *
+    error("plot_triangulation requires a Makie backend - run `using CairoMakie` " *
           "(or `using GLMakie`) to load the ExactWKB Makie extension.")
 end
 

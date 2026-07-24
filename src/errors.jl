@@ -12,7 +12,7 @@ abstract type ExactWKBError <: Exception end
 """
     InvalidPotential(msg)
 
-Thrown when a [`SchrodingerProblem`](@ref) is built from an inadmissible potential —
+Thrown when a [`SchrodingerProblem`](@ref) is built from an inadmissible potential -
 an empty coefficient vector, or a `Q = V − E` that is identically constant (no
 turning points, no WKB problem).
 """
@@ -26,7 +26,7 @@ Base.showerror(io::IO, e::InvalidPotential) = print(io, "InvalidPotential: ", e.
     UnsupportedTurningPoint(z, order)
 
 Thrown when an operation that only handles simple turning points meets one of higher
-`order` at `z` — e.g. the WKB recursion evaluation or the Stokes tracer at a double
+`order` at `z` - e.g. the WKB recursion evaluation or the Stokes tracer at a double
 turning point. The point is still classified correctly by [`turning_points`](@ref);
 only the downstream local model is missing (Weber local models are deferred).
 """
@@ -69,7 +69,7 @@ Base.showerror(io::IO, e::TracingFailed) = print(io, "TracingFailed: ", e.msg)
 """
     NonGenericGraph(msg)
 
-Thrown by [`ideal_triangulation`](@ref) when the traced Stokes graph is not generic —
+Thrown by [`ideal_triangulation`](@ref) when the traced Stokes graph is not generic -
 it contains a finite Stokes line (`θ` sits on a wall: perturb it away from the
 [`saddle_candidates`](@ref) phases), an `:incomplete` line, or fails a combinatorial
 invariant of a generic degree-`d` graph (`d + 2` marked points, `d` triangles,
@@ -87,7 +87,7 @@ Base.showerror(io::IO, e::NonGenericGraph) = print(io, "NonGenericGraph: ", e.ms
 Thrown by [`spectral_cycles`](@ref) when the energy `E` sits at (or numerically too
 close to) a critical value of the potential, so two turning points coalesce near `z`
 (separation `separation`; a multiple root reports `separation = 0`). The WKB cycle
-data is singular there — perturb `E` away from the critical value. Degenerate-Weber
+data is singular there - perturb `E` away from the critical value. Degenerate-Weber
 local models are deliberately out of the spectral layer's scope.
 """
 struct CoalescentTurningPoints <: ExactWKBError
@@ -99,7 +99,7 @@ end
 function Base.showerror(io::IO, e::CoalescentTurningPoints)
     print(io, "CoalescentTurningPoints: at E = $(e.energy) two turning points ",
           "coalesce near z ≈ $(e.z) (separation ≈ $(e.separation)); E is too close ",
-          "to a critical value of the potential — perturb the energy")
+          "to a critical value of the potential - perturb the energy")
 end
 
 """
@@ -126,7 +126,7 @@ Thrown when a chamber cannot carry the cluster machinery. Since the signed frame
 obstruction rather than an unimplemented case:
 
   * by [`bps_spectrum`](@ref) / `_sweep_chamber`, when two *non-commuting* saddle
-    phases coincide within tolerance (marginal stability — perturb the potential or
+    phases coincide within tolerance (marginal stability - perturb the potential or
     the energy), when the greedy sweep fails to close into a maximal green sequence,
     or when the swept states fail to reproduce the confirmed [`saddles`](@ref)
     (an internal inconsistency, not a reason to try another θ);
@@ -135,7 +135,7 @@ obstruction rather than an unimplemented case:
   * by [`verify_signed_frame`](@ref), when a wall's simultaneously flipped diagonals
     do not commute in the quiver.
 
-A keystone failure is a [`ContourError`](@ref), not this — it says the numerical
+A keystone failure is a [`ContourError`](@ref), not this - it says the numerical
 contours do not represent the combinatorial classes.
 """
 struct ChamberError <: ExactWKBError
@@ -157,3 +157,19 @@ struct TBAError <: ExactWKBError
 end
 
 Base.showerror(io::IO, e::TBAError) = print(io, "TBAError: ", e.msg)
+
+"""
+    PeriodError(msg)
+
+Thrown by the algebraic-geometry period layer (`src/sw_curve.jl`): by
+[`sw_periods`](@ref) / [`quantum_sw_periods`](@ref) when a modulus falls outside the
+implemented region (this rung covers the weak-coupling / electric region `u > 2Λ²` of
+the pure-SU(2) curve), by [`quantum_sw_periods`](@ref) on an unsupported expansion
+order, and by [`sw_monodromy`](@ref) on an unknown singular point. Generic; the natural
+home if this module is extracted into a standalone `Periods.jl` foundation package.
+"""
+struct PeriodError <: ExactWKBError
+    msg::String
+end
+
+Base.showerror(io::IO, e::PeriodError) = print(io, "PeriodError: ", e.msg)
