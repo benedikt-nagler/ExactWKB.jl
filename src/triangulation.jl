@@ -1,15 +1,15 @@
-# Stokes graph → ideal triangulation → quiver: the combinatorial half of the M4
+# Stokes graph → ideal triangulation → quiver: the combinatorial half of the
 # cluster bridge.
 #
 # A generic Stokes graph of a degree-d polynomial Q with all-simple turning points,
 # drawn on the disk (the z-plane compactified at the escape circle), is dual to an
 # ideal triangulation of a (d+2)-gon (Iwaki–Nakanishi): each turning point carries a
-# triangle, each Stokes region an edge of the triangulation — a *diagonal* when the
+# triangle, each Stokes region an edge of the triangulation - a *diagonal* when the
 # region is a strip (two turning points on its boundary), a *boundary edge* when it is
 # a half-plane (one turning point). The quiver of the triangulation is the exchange
 # matrix the DDP layer's `ddp_seed` expects (`B = −P`, ledger item 5 of src/ddp.jl).
 #
-# The construction is purely combinatorial — no geometry is reconstructed. The traced
+# The construction is purely combinatorial - no geometry is reconstructed. The traced
 # graph is turned into a planar map (rotation system) whose faces are enumerated by
 # the standard dual-walk φ(dart) = cw-next(reverse(dart)); the only numerical input
 # beyond the traced polylines is the cyclic order of the ray endpoints on the escape
@@ -32,7 +32,7 @@ infinite_lines(g::StokesGraph) = filter(l -> l.endpoint === :infinity, g.lines)
 
 `angle(z)` of the point where each infinite ray of `g` crosses the escape circle, in
 the order of [`infinite_lines`](@ref). Distinct Stokes lines never cross, so sorting
-these angles gives the exact cyclic order of the rays on the boundary of the disk —
+these angles gives the exact cyclic order of the rays on the boundary of the disk -
 the one numerical datum [`ideal_triangulation`](@ref) reads beyond the topology.
 """
 ray_exit_angles(g::StokesGraph) = [angle(l.points[end]) for l in infinite_lines(g)]
@@ -45,13 +45,13 @@ ray_exit_angles(g::StokesGraph) = [angle(l.points[end]) for l in infinite_lines(
 The ideal triangulation of the `n_marked`-gon dual to a generic Stokes graph
 (build with [`ideal_triangulation`](@ref)). Marked points are labelled `1:n_marked`
 counterclockwise (at the asymptotic directions `marked_angles`, display data). Edges
-are indexed canonically — diagonals first, sorted by `diagonal_tp_pair` (the pair of
+are indexed canonically - diagonals first, sorted by `diagonal_tp_pair` (the pair of
 turning points carrying the two adjacent triangles), then boundary edges sorted by
-their endpoints — and `edge_endpoints[e]` gives edge `e`'s marked-point pair.
+their endpoints - and `edge_endpoints[e]` gives edge `e`'s marked-point pair.
 `triangles[s]` lists the three edges of the triangle dual to turning point
 `triangle_tp[s]`, counterclockwise. The quiver on the diagonals is
 [`triangulation_quiver`](@ref). `theta` records the phase of the Stokes graph this
-triangulation came from — provenance, so the chamber is recoverable downstream
+triangulation came from - provenance, so the chamber is recoverable downstream
 (`Float64` because graph topology is Float64 by design); [`flip`](@ref) carries it
 through unchanged.
 """
@@ -76,7 +76,7 @@ n_marked_points(t::IdealTriangulation) = t.n_marked
 """
     n_diagonals(t::IdealTriangulation) -> Int
 
-Number of diagonals (internal edges) — the rank of [`triangulation_quiver`](@ref).
+Number of diagonals (internal edges) - the rank of [`triangulation_quiver`](@ref).
 """
 n_diagonals(t::IdealTriangulation) = count(t.is_diagonal)
 
@@ -113,7 +113,7 @@ _circ_dist(a, b) = abs(_wrap(a - b))
 
 The ideal triangulation of the marked disk dual to the generic Stokes graph `g`.
 Requires genericity: every Stokes line escapes to infinity (a finite line means `θ`
-sits on a wall — perturb it away from the [`saddle_candidates`](@ref) phases; an
+sits on a wall - perturb it away from the [`saddle_candidates`](@ref) phases; an
 `:incomplete` line means the trace gave up). Throws [`NonGenericGraph`](@ref)
 otherwise, and whenever a combinatorial invariant of a generic graph fails.
 """
@@ -126,7 +126,7 @@ function ideal_triangulation(g::StokesGraph{F}) where {F}
         if l.endpoint === :turning_point
             throw(NonGenericGraph(
                 "the graph contains a finite Stokes line between turning points " *
-                "$(l.source) and $(l.target): θ = $(Float64(g.theta)) sits on a wall — " *
+                "$(l.source) and $(l.target): θ = $(Float64(g.theta)) sits on a wall - " *
                 "perturb θ away from the saddle_candidates phases"))
         elseif l.endpoint !== :infinity
             throw(NonGenericGraph(
@@ -138,7 +138,7 @@ function ideal_triangulation(g::StokesGraph{F}) where {F}
     length(lines) == 3n || throw(NonGenericGraph(
         "expected 3·$n rays, found $(length(lines))"))
 
-    # rays of each turning point, indexed by direction k = 0, 1, 2 — this IS the
+    # rays of each turning point, indexed by direction k = 0, 1, 2 - this IS the
     # counterclockwise rotation at the turning point (the seed directions
     # (2θ − arg Q′ + 2πk)/3 increase counterclockwise; exact, no numerics).
     rays = [zeros(Int, 3) for _ in 1:n]
@@ -159,7 +159,7 @@ function ideal_triangulation(g::StokesGraph{F}) where {F}
         gap ≥ tol || throw(NonGenericGraph(
             "two rays exit the escape circle at nearly the same angle " *
             "(gap ≈ $(Float64(gap))): θ = $(Float64(g.theta)) is numerically on a " *
-            "wall — perturb θ"))
+            "wall - perturb θ"))
     end
 
     # 3. face walk of the planar map. Darts (half-edges), 12n total:
@@ -198,7 +198,7 @@ function ideal_triangulation(g::StokesGraph{F}) where {F}
         d == d0 || throw(NonGenericGraph("face walk failed to close (tracing bug)"))
         if any(x -> x > 9n, orbit)              # arc-backward darts ⇒ the outer face
             (outer_seen || length(orbit) != 3n || !all(x -> x > 9n, orbit)) &&
-                throw(NonGenericGraph("outer face is malformed — the graph is not a " *
+                throw(NonGenericGraph("outer face is malformed - the graph is not a " *
                                       "generic planar Stokes graph"))
             outer_seen = true
         else
@@ -231,7 +231,7 @@ function ideal_triangulation(g::StokesGraph{F}) where {F}
         ok = (length(tps) == 1 && arcs == 1) || (length(tps) == 2 && arcs == 2)
         ok || throw(NonGenericGraph(
             "Stokes region with $(length(tps)) turning points and $arcs boundary " *
-            "arcs — not a half-plane or strip region of a generic graph"))
+            "arcs - not a half-plane or strip region of a generic graph"))
     end
     isdiag = [length(t) == 2 for t in face_tps]
     count(isdiag) == n - 1 || throw(NonGenericGraph(
@@ -241,7 +241,7 @@ function ideal_triangulation(g::StokesGraph{F}) where {F}
     # consecutive rays (r_k, r_{k+1}) lies in the face of the outward dart r_k, so
     # triangle s has edge-faces (F(r₁), F(r₂), F(r₃)) counterclockwise, and the
     # corner between consecutive edge-faces (F(r_k), F(r_{k+1})) sits at the shared
-    # ray r_{k+1} — corners are labelled by rays (3n corners, one per ray).
+    # ray r_{k+1} - corners are labelled by rays (3n corners, one per ray).
     tri_faces = Vector{NTuple{3,Int}}(undef, n)
     for s in 1:n
         fs = (face_of[rays[s][1]], face_of[rays[s][2]], face_of[rays[s][3]])
@@ -257,7 +257,7 @@ function ideal_triangulation(g::StokesGraph{F}) where {F}
         idx = findall(==(f), collect(tri_faces[s]))
         length(idx) == 1 || throw(NonGenericGraph(
             "diagonal region is adjacent to turning point $s more than once " *
-            "(self-folded triangle — impossible on the disk)"))
+            "(self-folded triangle - impossible on the disk)"))
         idx[1]
     end
     parent = collect(1:3n)                      # union-find over rays (= corners)
@@ -276,7 +276,7 @@ function ideal_triangulation(g::StokesGraph{F}) where {F}
     qc = q_coefficients(g.problem)
     d = length(qc) - 1
     d == n || throw(NonGenericGraph(
-        "degree $d potential with $n simple turning points — the graph is degenerate"))
+        "degree $d potential with $n simple turning points - the graph is degenerate"))
     θ = g.theta
     phis = [mod((2θ - angle(Complex{F}(last(qc))) + 2 * F(π) * k) / (d + 2), 2 * F(π))
             for k in 0:(d + 1)]
@@ -288,12 +288,12 @@ function ideal_triangulation(g::StokesGraph{F}) where {F}
         for ℓ in members
             _circ_dist(ang[ℓ], phis[k]) < F(π) / (d + 2) || throw(NonGenericGraph(
                 "a ray's exit angle is not close to its marked point's asymptotic " *
-                "direction — retrace with a larger escape_radius"))
+                "direction - retrace with a larger escape_radius"))
         end
         class_phi[r] = phis[k]
     end
     length(unique(values(class_phi))) == n + 2 || throw(NonGenericGraph(
-        "two marked points matched the same asymptotic direction — retrace with a " *
+        "two marked points matched the same asymptotic direction - retrace with a " *
         "larger escape_radius"))
     roots_sorted = sort(roots; by = r -> class_phi[r])
     marked_label = Dict(r => i for (i, r) in enumerate(roots_sorted))
@@ -350,7 +350,7 @@ triangles always come out as oriented 3-cycles, so this quiver is finite type
 `A_{d−1}` for every chamber.
 
 It equals the physical seed quiver of [`charge_basis`](@ref) **exactly**:
-`B == −signed_pairing(cb)`, the tightened keystone. (The M4 layer could only assert
+`B == −signed_pairing(cb)`, the tightened keystone. (The original bridge layer could only assert
 `abs.(B) == abs.(P)` against the raw decay pairing; the signed frame of
 `src/signed_frame.jl` supplies the missing orientation.)
 """
@@ -376,7 +376,7 @@ end
 # mutates the quiver at those vertices. `flip` performs the move combinatorially, so a
 # chamber walk costs no Stokes traces.
 #
-# Edge indices are deliberately PRESERVED — the flipped diagonal keeps index `k`, so
+# Edge indices are deliberately PRESERVED - the flipped diagonal keeps index `k`, so
 # `triangulation_quiver(flip(t, k)).B == mutate(triangulation_quiver(t), k).B` is an
 # index-aligned identity. The canonical order of `ideal_triangulation` (diagonals
 # sorted by `diagonal_tp_pair`) is generally a different indexing, because the flip
@@ -396,18 +396,18 @@ end
 
 The ideal triangulation obtained by flipping diagonal `k`: the two triangles adjacent
 to `k` form a quad, and `k` is replaced by the quad's other diagonal. Edge indices are
-preserved (the new diagonal keeps index `k`), so the quiver mutates at vertex `k` —
+preserved (the new diagonal keeps index `k`), so the quiver mutates at vertex `k` -
 `triangulation_quiver(flip(t, k)).B == ClusterAlgebras.mutate(triangulation_quiver(t), k).B`.
 
 `direction` is the sense in which the wall is crossed: `+1` for increasing `θ`, `-1`
-for decreasing. It is *not* redundant — the Stokes graph rotates with `θ`, so the two
+for decreasing. It is *not* redundant - the Stokes graph rotates with `θ`, so the two
 senses reconnect the collapsing strip oppositely and exchange which of the two new
 triangles is dual to which turning point. `flip(flip(t, k), k; direction = -1) == t`.
 
 `diagonal_tp_pair` is recomputed: the flipped diagonal keeps its own turning-point
 pair (the strip re-forms between the same two turning points), while two of the quad's
-four sides swap which turning point borders them. `theta` is carried through unchanged
-— it records where the triangulation was traced, not where the flip put it. Use
+four sides swap which turning point borders them. `theta` is carried through unchanged -
+it records where the triangulation was traced, not where the flip put it. Use
 [`canonical_reorder`](@ref) to compare the result with a freshly traced triangulation.
 """
 function flip(t::IdealTriangulation, k::Integer; direction::Integer = 1)
@@ -441,10 +441,10 @@ function flip(t::IdealTriangulation, k::Integer; direction::Integer = 1)
 
     # name the four quad sides by the corners they join
     has(e, x) = x in t.edge_endpoints[e]
-    e_up = has(o1, u) ? o1 : o2          # u—p
-    e_pv = e_up == o1 ? o2 : o1          # p—v
-    e_vq = has(o3, v) ? o3 : o4          # v—q
-    e_qu = e_vq == o3 ? o4 : o3          # q—u
+    e_up = has(o1, u) ? o1 : o2          # u - p
+    e_pv = e_up == o1 ? o2 : o1          # p - v
+    e_vq = has(o3, v) ? o3 : o4          # v - q
+    e_qu = e_vq == o3 ? o4 : o3          # q - u
 
     endpoints = copy(t.edge_endpoints)
     endpoints[k] = (min(p, q), max(p, q))
@@ -453,7 +453,7 @@ function flip(t::IdealTriangulation, k::Integer; direction::Integer = 1)
     rotate(e) = (shift = argmin(collect(e)) - 1;
                  ntuple(i -> e[mod1(i + shift, 3)], 3))
     triangles = copy(t.triangles)
-    # `triangle_tp` is unchanged — each slot keeps its turning point — so the handedness
+    # `triangle_tp` is unchanged - each slot keeps its turning point - so the handedness
     # of the reconnection is expressed by WHICH slot each new triangle lands in. Crossing
     # the wall towards increasing θ sends the u-side triangle to the slot whose apex was
     # p; crossing the other way sends it to the slot whose apex was q. Pinned in both
@@ -484,9 +484,9 @@ end
 """
     canonical_reorder(t::IdealTriangulation) -> (IdealTriangulation, Vector{Int})
 
-Re-index the edges of `t` into the canonical order of [`ideal_triangulation`](@ref) —
-diagonals first sorted by `diagonal_tp_pair`, then boundary edges sorted by endpoints
-— and return the reordered triangulation together with the permutation `perm`, where
+Re-index the edges of `t` into the canonical order of [`ideal_triangulation`](@ref) -
+diagonals first sorted by `diagonal_tp_pair`, then boundary edges sorted by endpoints -
+and return the reordered triangulation together with the permutation `perm`, where
 `perm[new] = old`. A freshly traced triangulation is already canonical; the output of
 [`flip`](@ref) generally is not.
 """

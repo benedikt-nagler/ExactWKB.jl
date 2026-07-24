@@ -1,18 +1,18 @@
-# Energy-parametrized quantum periods: the bridge from "fixed problem" (M3) to
-# "spectral family" (M5). At an energy E the real simple turning points of a real
+# Energy-parametrized quantum periods: the bridge from a fixed problem to
+# its spectral family. At an energy E the real simple turning points of a real
 # polynomial potential cut the real axis into classically allowed (Q < 0, "well") and
 # forbidden (Q > 0, "barrier") intervals; each well, and each barrier strictly between
 # two wells, carries a period cycle. The cycle's quantum period is the Voros symbol of
-# its encircling contour — the full M3 pipeline re-run at E (`with_energy` re-solve,
+# its encircling contour - the full Stokes-graph pipeline re-run at E (`with_energy` re-solve,
 # no new series type).
 #
-# ── M5 orientation ledger (pinned by the harmonic oracle in test_quantum_periods) ──
+# ── Spectral orientation ledger (pinned by the harmonic oracle in test_quantum_periods) ──
 # Cycles are built as `encircling_contour(left, right)` with the turning points in
 # ascending real order. With that orientation:
 #   * a WELL cycle has classical period v₋₁ = −i·J(E), J(E) = 2∫√(E−V) dz > 0 the
 #     classical action (harmonic: v₋₁ = −iπE, so |v₋₁|/(2πħ) = n + ½ quantizes);
 #   * a BARRIER cycle has real negative v₋₁ = −2∫√(V−E) dz (minus twice the
-#     tunneling/instanton action — the decaying orientation of the DDP layer).
+#     tunneling/instanton action - the decaying orientation of the DDP layer).
 # Contours are never reoriented downstream (DDP ledger item 4).
 
 """
@@ -49,11 +49,11 @@ endpoints(c::SpectralCycle) = (c.left, c.right)
 Base.:(==)(a::SpectralCycle, b::SpectralCycle) =
     a.kind == b.kind && a.left == b.left && a.right == b.right && a.contour == b.contour
 
-# real polynomial potential guard (M5 scope: real potentials, real spectra)
+# real polynomial potential guard (scope: real potentials, real spectra)
 function _require_real_potential(prob::SchrodingerProblem, what)
     all(x -> isreal(x) || iszero(imag(x)), prob.v_coeffs) && isreal(prob.energy) ||
         throw(Resurgence.InvalidArgument(
-            "$what needs a real polynomial potential and real energy (M5 scope)"))
+            "$what needs a real polynomial potential and real energy (real-spectrum scope)"))
 end
 
 # distance from point p to the closed segment [a, b] (all complex)
@@ -71,14 +71,14 @@ end
         -> Vector{SpectralCycle}
 
 The period cycles of the family `Q = V − E` at energy `E`, for a **real polynomial
-potential** (the M5 scope): the real simple turning points are sorted; classically
+potential** (the real-spectrum scope): the real simple turning points are sorted; classically
 allowed intervals (`Q < 0`) give `:well` cycles and forbidden intervals strictly
 between two wells give `:barrier` cycles, in ascending position order. Each cycle
 carries an [`encircling_contour`](@ref) sized to enclose exactly its two turning
 points (`margin` overrides the automatic padding, `n` the polygon resolution).
 
 Throws [`CoalescentTurningPoints`](@ref) when `E` is too close to a critical value
-of `V` — a multiple turning point, or two real turning points closer than
+of `V` - a multiple turning point, or two real turning points closer than
 `coalescence_tol` (default `eps^{1/4}` of the working float type, scaled).
 `real_tol` sets the reality tolerance for turning points (default `√eps`, scaled).
 Returns an empty vector when no interval between real turning points is allowed
@@ -139,7 +139,7 @@ function spectral_cycles(prob::SchrodingerProblem, E; margin = nothing,
         # branch at the exact-real start vertex, the counterclockwise contour gives
         # a well cycle v₋₁ = −iJ (the harmonic oracle) but a barrier cycle +2S_I;
         # barrier cycles are therefore traversed clockwise (same start vertex), so
-        # their classical period is −2S_I < 0 — the decaying orientation.
+        # their classical period is −2S_I < 0 - the decaying orientation.
         kinds[k] === :barrier && (ct = vcat(ct[1:1], reverse(ct[2:end])))
         push!(cycles, SpectralCycle{F}(kinds[k], a, b, ct))
     end
@@ -152,10 +152,10 @@ end
     quantum_period(prob::SchrodingerProblem, kind::Symbol, E; kwargs...) -> VorosSymbol
 
 The quantum period (Voros symbol) of `cycle` at energy `E`: the full WKB pipeline
-re-run on `with_energy(prob, E)` — [`wkb_expansion`](@ref) to `order`, then
+re-run on `with_energy(prob, E)` - [`wkb_expansion`](@ref) to `order`, then
 [`voros_symbol`](@ref) along the cycle's contour. The `kind` form (`:well` or
 `:barrier`) resolves the cycle via [`spectral_cycles`](@ref) and requires it to be
-unique of its kind (a symmetric double well has two `:well` cycles — pass the
+unique of its kind (a symmetric double well has two `:well` cycles - pass the
 `SpectralCycle` explicitly there).
 """
 function quantum_period(prob::SchrodingerProblem, cycle::SpectralCycle, E;

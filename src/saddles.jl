@@ -1,12 +1,12 @@
 # Saddles (BPS states) of a Schrödinger problem.
 #
-# A *saddle* is a Stokes line connecting two turning points `z_i`, `z_j` — a finite
+# A *saddle* is a Stokes line connecting two turning points `z_i`, `z_j` - a finite
 # trajectory. It appears only at the critical phase `θ_c = arg Z_ij (mod π)`, where
 #
 #     Z_ij = 2 ∫_{z_i}^{z_j} √Q dz
 #
 # is the central charge. Under the Iwaki–Nakanishi dictionary a finite Stokes line is a
-# BPS state and `|Z_ij|` is its mass — the datum the M4 cluster bridge turns into a
+# BPS state and `|Z_ij|` is its mass - the datum the cluster bridge turns into a
 # spectrum. `saddle_candidates` finds the `Z_ij` of every turning-point pair from the
 # periods alone; `saddles` keeps only those whose finite edge is confirmed by actually
 # tracing the graph at `θ_c`.
@@ -76,7 +76,7 @@ end
 For every pair of simple turning points, the central charge `Z_ij = 2∫√Q` (computed
 from the open-path period, with a perpendicular detour when a third turning point
 grazes the straight path) and the critical phase `θ_c = arg Z_ij (mod π)`. These are
-*candidates* — [`saddles`](@ref) confirms which actually form a finite Stokes line.
+*candidates* - [`saddles`](@ref) confirms which actually form a finite Stokes line.
 """
 function saddle_candidates(prob::SchrodingerProblem)
     tps = simple_turning_points(prob)
@@ -131,7 +131,7 @@ end
 """
     stokes_graph_family(prob::SchrodingerProblem, thetas; kwargs...) -> Vector{StokesGraph}
 
-The Stokes graph traced at each phase in `thetas` — a slice through the wall-crossing
+The Stokes graph traced at each phase in `thetas` - a slice through the wall-crossing
 as `θ` sweeps. Topology jumps (an edge appearing or vanishing) mark critical phases;
 `allow_incomplete = true` is set so a marginal ray never aborts the sweep.
 """

@@ -7,7 +7,7 @@
 #     dz/dt = e^{iθ} / w ,      dw/dt = Q′(z) e^{iθ} / (2 w²) .
 #
 # Then `d(∫√Q dz)/dt = e^{iθ}`, so `e^{−iθ}∫√Q dz = t + const` stays on the real axis
-# and `t` is *exactly* the mass parameter — no discrete branch choices are ever made,
+# and `t` is *exactly* the mass parameter - no discrete branch choices are ever made,
 # which is the whole point (branch cuts are the top correctness risk). A per-step
 # re-projection `w → ±√Q(z)` snaps the tiny integration drift back onto the shell.
 #
@@ -25,8 +25,8 @@ import OrdinaryDiffEqTsit5 as ODE
 One traced Stokes line. `source` is the index (into the graph's `turning_points`) of
 the simple turning point it emanates from, `direction ∈ 0:2` selects which of the
 three rays, and `points` is the traced polyline in the `z`-plane. `endpoint` is one of
-`:turning_point` (a saddle — `target` is the index of the turning point it runs into),
-`:infinity` (an infinite ray — `target === nothing`), or `:incomplete` (tracing gave
+`:turning_point` (a saddle - `target` is the index of the turning point it runs into),
+`:infinity` (an infinite ray - `target === nothing`), or `:incomplete` (tracing gave
 up at `max_mass`). `mass` is the accumulated mass parameter `t` at the endpoint.
 """
 struct StokesLine{F}
@@ -158,12 +158,12 @@ turning point `z₀` in the directions `arg(z − z₀) = (2θ − arg Q′(z₀
 `k = 0,1,2`, and integrated until they escape to infinity, run into another turning
 point (a saddle), or hit the `max_mass` safety.
 
-Turning points of order ≥ 2 are classified fine but cannot be traced through — they
-throw [`UnsupportedTurningPoint`](@ref) (Weber local models are deferred to M4).
+Turning points of order ≥ 2 are classified fine but cannot be traced through - they
+throw [`UnsupportedTurningPoint`](@ref) (Weber local models are deferred).
 
 Keyword arguments (all with geometry-scaled defaults): `seed_radius`, `hit_radius`,
 `escape_radius`, `max_mass`, `reltol`, `abstol`, and `allow_incomplete` (default
-`false` — an `:incomplete` ray otherwise throws [`TracingFailed`](@ref)).
+`false` - an `:incomplete` ray otherwise throws [`TracingFailed`](@ref)).
 """
 function stokes_graph(prob::SchrodingerProblem; theta = 0.0, bigfloat::Bool = false,
                       seed_radius = nothing, hit_radius = nothing,
@@ -227,7 +227,7 @@ end
     finite_lines(g::StokesGraph) -> Vector{StokesLine}
 
 The saddle trajectories (Stokes lines connecting two turning points). Each saddle is
-traced twice — once from each endpoint — so this list double-counts; use [`edges`](@ref)
+traced twice - once from each endpoint - so this list double-counts; use [`edges`](@ref)
 for the deduplicated turning-point pairs.
 """
 finite_lines(g::StokesGraph) = filter(is_finite_line, g.lines)
@@ -259,7 +259,7 @@ n_infinite_lines(g::StokesGraph) = count(l -> l.endpoint === :infinity, g.lines)
 A canonical, tolerance-robust invariant of the graph's topology: the number of simple
 turning points, the number of infinite rays, and the sorted saddle edges (turning
 points ordered canonically by position). Two graphs with the same signature have the
-same Stokes topology — this is the datum the M4 cluster bridge will read.
+same Stokes topology - this is the datum the cluster bridge will read.
 """
 function topology_signature(g::StokesGraph)
     (length(g.turning_points), n_infinite_lines(g), edges(g))

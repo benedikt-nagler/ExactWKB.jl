@@ -28,7 +28,7 @@ Base.showerror(io::IO, e::InvalidPotential) = print(io, "InvalidPotential: ", e.
 Thrown when an operation that only handles simple turning points meets one of higher
 `order` at `z` — e.g. the WKB recursion evaluation or the Stokes tracer at a double
 turning point. The point is still classified correctly by [`turning_points`](@ref);
-only the downstream local model is missing (deferred to M4).
+only the downstream local model is missing (Weber local models are deferred).
 """
 struct UnsupportedTurningPoint <: ExactWKBError
     z::Number
@@ -37,7 +37,7 @@ end
 
 function Base.showerror(io::IO, e::UnsupportedTurningPoint)
     print(io, "UnsupportedTurningPoint: turning point at z ≈ $(e.z) has order ",
-          "$(e.order); only simple (order-1) turning points are supported in M3")
+          "$(e.order); only simple (order-1) turning points are currently supported")
 end
 
 """
@@ -88,7 +88,7 @@ Thrown by [`spectral_cycles`](@ref) when the energy `E` sits at (or numerically 
 close to) a critical value of the potential, so two turning points coalesce near `z`
 (separation `separation`; a multiple root reports `separation = 0`). The WKB cycle
 data is singular there — perturb `E` away from the critical value. Degenerate-Weber
-local models are deliberately out of the M5 scope.
+local models are deliberately out of the spectral layer's scope.
 """
 struct CoalescentTurningPoints <: ExactWKBError
     energy::Number
@@ -143,3 +143,17 @@ struct ChamberError <: ExactWKBError
 end
 
 Base.showerror(io::IO, e::ChamberError) = print(io, "ChamberError: ", e.msg)
+
+"""
+    TBAError(msg)
+
+Thrown by the TBA layer: by [`tba_system`](@ref) on an empty spectrum, by
+[`solve_tba`](@ref) when the fixed-point iteration fails to converge within
+`maxiter` (pass a larger `maxiter`, or under-relax with `relax < 1`), and by
+evaluation when the requested `ħ` falls outside the solved rapidity window.
+"""
+struct TBAError <: ExactWKBError
+    msg::String
+end
+
+Base.showerror(io::IO, e::TBAError) = print(io, "TBAError: ", e.msg)

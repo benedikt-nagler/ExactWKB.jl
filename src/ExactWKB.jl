@@ -25,7 +25,7 @@ import ClusterAlgebras
 
 export ExactWKBError, InvalidPotential, UnsupportedTurningPoint, ContourError,
        TracingFailed, NonGenericGraph, ChamberError, CoalescentTurningPoints,
-       QuantizationError
+       QuantizationError, TBAError
 export SpectralCycle, spectral_cycles, quantum_period, kind, endpoints
 export quantization_condition, spectral_determinant, wkb_eigenvalue
 export perturbative_b, instanton_a, verify_zjj, energy_splitting
@@ -48,6 +48,7 @@ export ChargeBasis, charge_basis, charge_contour, bridge_seed, n_charges,
        central_charges, signs, physical_charges, signed_pairing
 export signed_frame, verify_signed_frame, chamber_walls, reference_theta
 export BPSState, BPSSpectrum, bps_spectrum, n_states, charges, charge, phase
+export TBASystem, TBASolution, tba_system, solve_tba, n_iterations, residual
 export plot_stokes_graph, plot_triangulation
 
 include("errors.jl")
@@ -66,6 +67,7 @@ include("triangulation.jl")
 include("charge_lattice.jl")
 include("signed_frame.jl")
 include("bps.jl")
+include("tba.jl")
 include("show.jl")
 
 """
@@ -94,7 +96,7 @@ function plot_triangulation(args...; kwargs...)
           "(or `using GLMakie`) to load the ExactWKB Makie extension.")
 end
 
-# Precompile the flagship M3 chain on a cheap Float64 double well so the first
+# Precompile the flagship Stokes-graph chain on a cheap Float64 double well so the first
 # interactive `stokes_graph`/`voros_symbol` call is warm.
 @setup_workload begin
     @compile_workload begin
@@ -105,7 +107,7 @@ end
         g = stokes_graph(prob; theta = 0.0)
         topology_signature(g)
         saddle_candidates(prob)
-        # the M4 bridge chain on the cheap cubic
+        # the cluster-bridge chain on the cheap cubic
         cubic = SchrodingerProblem([0.0, -1.0, 0.0, 1.0])
         t = ideal_triangulation(stokes_graph(cubic; theta = 0.3))
         cb = charge_basis(cubic, t)
@@ -113,7 +115,7 @@ end
         signs(cb); physical_charges(cb); signed_pairing(cb)
         flip(t, 1)
         chamber_walls(cubic)
-        # the M5 spectral chain on a cheap Float64 harmonic well
+        # the spectral chain on a cheap Float64 harmonic well
         harm = SchrodingerProblem([0.0, 0.0, 1.0])
         spectral_cycles(harm, 1.0)
         wkb_eigenvalue(harm, 0, 0.3; order = 2)

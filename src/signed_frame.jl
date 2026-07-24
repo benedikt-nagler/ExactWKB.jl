@@ -1,4 +1,4 @@
-# The signed frame — the Iwaki–Nakanishi orientation layer on top of the DDP decay rule.
+# The signed frame - the Iwaki–Nakanishi orientation layer on top of the DDP decay rule.
 #
 # `_oriented_contour` (src/charge_lattice.jl) fixes a *representative* of ±γ_e by the
 # uniform decay rule, not the physical charge. The physical cycle is
@@ -7,29 +7,29 @@
 #
 # and everything downstream follows with no ledger change: `Z_j^phys = ε_j Z_j^dec`,
 # `⟨γ_i^phys, γ_j^phys⟩ = ε_i ε_j P[i,j]`, and ledger item 5 (`B = −P`, src/ddp.jl)
-# applies verbatim to the *signed* pairing. Contours are never reoriented — ledger
-# item 4 and the M5 orientation ledger (src/quantum_periods.jl) stay literal; the sign
+# applies verbatim to the *signed* pairing. Contours are never reoriented - ledger
+# item 4 and the spectral orientation ledger (src/quantum_periods.jl) stay literal; the sign
 # is bookkeeping layered on an unchanged numerical frame.
 #
 # ── how ε is determined ────────────────────────────────────────────────────────────
-# By inverting the keystone identity, which the M4 layer had weakened to `|P| = |B|`:
+# By inverting the keystone identity, which the original bridge layer had weakened to `|P| = |B|`:
 #
 #     P[i,j] == −ε_i ε_j · B[i,j],      B = triangulation_quiver(t).B
 #
 # Each quiver edge forces the product ε_i ε_j, so ε is the solution of a linear system
-# over 𝔽₂ on the quiver graph — obtained by spanning-tree propagation, unique up to one
+# over 𝔽₂ on the quiver graph - obtained by spanning-tree propagation, unique up to one
 # global sign per connected component. Solvability is a genuine theorem, not an
 # accounting identity: it requires the product of edge signs around every cycle of the
 # quiver graph to be +1. Tree chambers have no cycles, so it is automatic there; a
 # *cyclic* chamber (a triangle of the triangulation with all three edges internal,
 # generic for degree ≥ 5) imposes one real cocycle condition, and it is exactly this
-# condition that the M4 layer could not meet with the uniform decay frame. It holds in
-# every chamber of the cubic/quartic/quintic fixtures — see test_signed_frame.jl.
+# condition that the original bridge layer could not meet with the uniform decay frame. It holds in
+# every chamber of the cubic/quartic/quintic fixtures - see test_signed_frame.jl.
 #
 # ── the gauge, and why the walk lives in the tests ─────────────────────────────────
 # The residual global sign per component is *cosmetic*: it leaves the signed pairing,
 # the seed, every mass `|Z|` and every wall phase `arg Z mod π` invariant, so the BPS
-# spectrum does not depend on it — only the displayed sign of a central charge does.
+# spectrum does not depend on it - only the displayed sign of a central charge does.
 # `signed_frame` therefore fixes it by convention (`ε = +1` on the first diagonal of
 # each component) and does no extra numerics.
 #
@@ -48,7 +48,7 @@
 # phase below π, where **ε ≡ +1**. This is pinned, not derived: it is the gauge in
 # which DDP ledger items 4/5/6 were originally fixed by the cubic oracle, and as
 # θ₀ → π⁻ the chamber-relative MGS order degenerates to the absolute θ-decreasing
-# order of ledger item 6. It is self-checking — were it wrong, the transported frame
+# order of ledger item 6. It is self-checking - were it wrong, the transported frame
 # would fail the tightened keystone at the very first chamber.
 
 """
@@ -56,7 +56,7 @@
 
 The walls of the θ-circle: one entry `(θ_c, pairs)` per *confirmed* saddle phase, in
 increasing order, listing the turning-point pairs whose saddles sit at that phase.
-Several pairs at one phase is a *degenerate* wall — crossing it flips several
+Several pairs at one phase is a *degenerate* wall - crossing it flips several
 diagonals at once (they must commute in the quiver).
 
 Phases are reduced **mod π** (the wall circle has circumference π, as in
@@ -89,7 +89,7 @@ end
 """
     reference_theta(prob::SchrodingerProblem; kwargs...) -> Real
 
-The phase of the *reference chamber* — the midpoint of `(θ_max, π)`, where `θ_max` is
+The phase of the *reference chamber* - the midpoint of `(θ_max, π)`, where `θ_max` is
 the largest wall phase below `π`. This is the chamber in which the signed frame is
 pinned to `ε ≡ +1`. Throws [`ChamberError`](@ref) if the top chamber is too narrow to
 trace generically.
@@ -100,7 +100,7 @@ function reference_theta(prob::SchrodingerProblem; kwargs...)
     θmax = isempty(walls) ? zero(F) : maximum(w[1] for w in walls)
     gap = F(π) - θmax
     gap > sqrt(eps(F)) || throw(ChamberError(
-        "the top chamber (θ_max, π) has width $(Float64(gap)) — too narrow to trace " *
+        "the top chamber (θ_max, π) has width $(Float64(gap)) - too narrow to trace " *
         "generically, so the signed frame has no reference chamber to pin ε ≡ +1"))
     θmax + gap / 2
 end
@@ -143,7 +143,7 @@ Obtained by inverting the keystone identity `P[i,j] == −ε_i ε_j · B[i,j]` a
 combinatorial exchange matrix of the triangulation, with the residual (physically
 inert) gauge fixed to `ε = +1` on the first diagonal of each connected component.
 
-Throws [`ContourError`](@ref) when the identity has no solution — either a magnitude
+Throws [`ContourError`](@ref) when the identity has no solution - either a magnitude
 mismatch (the numerical contours do not represent the combinatorial classes) or a
 failure of the cocycle condition around a cycle of the quiver graph.
 """
@@ -173,7 +173,7 @@ combinatorially ([`flip`](@ref)), and at each wall transport the frame's gauge b
 continuity of the central charge.
 
 Returns `(; n_walls, triangulation_matches, walked)`, where `triangulation_matches`
-says the walk lands on exactly the triangulation the tracer produces at `θ` — the
+says the walk lands on exactly the triangulation the tracer produces at `θ` - the
 substantive claim, and what connects every chamber to the verified reference one.
 
 **Two things are deliberately not asserted, because neither is a theorem.**
@@ -182,7 +182,7 @@ substantive claim, and what connects every chamber to the verified reference one
     local solve is only defined up to that sign.
   * *"ε is continuous across a wall on diagonals whose turning-point pair persists"*
     is false, and measurably so (cubic θ ≈ 0.785; quintic below the top chamber).
-    The cycle γ_p does persist — turning points do not move with θ — but the *seed*
+    The cycle γ_p does persist - turning points do not move with θ - but the *seed*
     is a different object in each chamber, so nothing forces the sign attaching γ_p
     to its vertex to carry over. **ε is chamber-local data, fixed by the keystone.**
 

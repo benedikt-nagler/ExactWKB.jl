@@ -169,6 +169,18 @@ function Base.show(io::IO, ::MIME"text/plain", sp::BPSSpectrum)
     end
 end
 
+# -- TBASystem / TBASolution ---------------------------------------------------------
+
+function Base.show(io::IO, sys::TBASystem)
+    print(io, "TBASystem(", n_states(sys), " states)")
+end
+
+function Base.show(io::IO, sol::TBASolution)
+    print(io, "TBASolution(", n_states(sol.system), " states, ",
+          length(sol.grid), "-point grid, ", sol.iterations,
+          " sweeps, residual ", _disp(sol.residual), ")")
+end
+
 # subscript helper for small non-negative integers
 function _sub(n::Integer)
     n < 0 && return "₋" * _sub(-n)

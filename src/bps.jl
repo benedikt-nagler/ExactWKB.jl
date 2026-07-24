@@ -1,4 +1,13 @@
-# BPS spectra from maximal green sequences — the payoff of the M4 bridge.
+# BPS spectra from maximal green sequences - the payoff of the cluster bridge.
+#
+# In physics language this file computes the BPS particle spectrum of a 4d N = 2
+# quantum field theory: a degree-d polynomial potential realizes the Argyres–Douglas
+# theory of type (A₁, A_{d−1}), whose BPS states are the saddle connections of the
+# Stokes graph. A `BPSState` is a BPS hypermultiplet with charge γ in the chamber's
+# charge lattice, N = 2 central charge Z_γ, mass |Z_γ| and BPS phase arg Z_γ; its
+# `omega` is the Donaldson–Thomas invariant Ω(γ) (= 1 throughout finite type), and
+# the phase-ordered spectrum is the Kontsevich–Soibelman wall-crossing product read
+# off a maximal green sequence.
 #
 # The spectrum of a polynomial problem is enumerated cluster-algebraically: the seed
 # of a chamber is `bridge_seed(charge_basis(...))`, and the physical maximal green
@@ -7,21 +16,21 @@
 # so the MGS charge order is by increasing `mod(θ₀ − θ_c, π)`): among the currently
 # green vertices, mutate the one whose c-vector charge `c` has the wall phase of
 # `Z(c) = Σ c_j Z_j^phys` nearest below θ₀. This produces THE physical
-# sequence in `#states` mutations — no enumeration of all maximal green sequences
+# sequence in `#states` mutations - no enumeration of all maximal green sequences
 # (A₄ already has hundreds). Two walls tied in phase are legal only when they
-# commute (the current exchange-matrix entry vanishes — e.g. the two disjoint wells
+# commute (the current exchange-matrix entry vanishes - e.g. the two disjoint wells
 # of a symmetric double well); a non-commuting tie is genuine marginal stability and
 # throws `ChamberError`.
 #
 # Everything here is integer cluster machinery plus the numerical central charges;
 # Voros symbols never enter. The definitive physical validation is built in
 # (`verify = true`): the state multiset (mass, wall phase) must coincide with the
-# confirmed `saddles(prob)` — the finite Stokes lines actually traced. Further
+# confirmed `saddles(prob)` - the finite Stokes lines actually traced. Further
 # oracles live in test_bps.jl: Ω ≡ 1 in finite type, Zamolodchikov periodicity
 # h + 2, DT closure, chamber independence.
 #
-# ── the signed frame closed both M4 findings (M4b, 2026-07-19) ─────────────────────
-# The M4 layer used the uniform all-decay frame and the *absolute* θ-decreasing order.
+# ── the signed frame closed both original-bridge findings (2026-07-19) ─────────────────────
+# The original bridge layer used the uniform all-decay frame and the *absolute* θ-decreasing order.
 # Both are top-chamber specializations, and both failed elsewhere: cyclic chambers had
 # no seed at all, and the quintic's real-axis fan chamber (θ ∈ (0, 0.103)) swept a
 # cluster-consistent but unphysical 6-state sequence against 7 saddles. The signed
@@ -30,7 +39,7 @@
 #
 # So the saddle cross-check `_matches_saddles` changed meaning rather than code: it
 # was the *gate* that chose a chamber, and is now the *verification* of a frame that
-# should be correct by construction. A failure is a bug, not a chamber property — and
+# should be correct by construction. A failure is a bug, not a chamber property - and
 # the default θ is simply the widest wall-free gap, no longer a search.
 
 """
@@ -113,7 +122,7 @@ central_charges(sp::BPSSpectrum) = [s.central_charge for s in sp.states]
 # Ledger item 6 in its chamber-relative form: walls are crossed as θ DECREASES from
 # the chamber's θ₀, so the sweep order is by increasing `mod(θ₀ − θ_c, π)`. As
 # θ₀ → π⁻ this degenerates to the absolute θ-decreasing order in which item 6 was
-# originally pinned — the top chamber is that special case, which is why the M4-era
+# originally pinned - the top chamber is that special case, which is why the original
 # absolute rule worked there and nowhere else.
 function _sweep_chamber(cb::ChargeBasis{F}; verify::Bool) where {F}
     m = n_charges(cb)
@@ -143,7 +152,7 @@ function _sweep_chamber(cb::ChargeBasis{F}; verify::Bool) where {F}
             all(B[greens[a], greens[b]] == 0 for a in tied, b in tied if a != b) ||
                 throw(ChamberError(
                     "marginal stability: two non-commuting walls share the phase " *
-                    "θ_c ≈ $(Float64(mod(θ0 - pmin, F(π)))) — perturb the potential " *
+                    "θ_c ≈ $(Float64(mod(θ0 - pmin, F(π)))) - perturb the potential " *
                     "or the energy"))
         end
         i = tied[argmin([greens[j] for j in tied])]    # deterministic among commuting ties
@@ -159,7 +168,7 @@ function _sweep_chamber(cb::ChargeBasis{F}; verify::Bool) where {F}
         all(ps[i + 1] ≥ ps[i] - tie_tol for i in 1:(length(ps) - 1)) ||
             throw(ChamberError(
                 "the swept wall phases do not recede monotonically from θ₀ = " *
-                "$(Float64(θ0)) — the greedy sequence is not the physical chamber " *
+                "$(Float64(θ0)) - the greedy sequence is not the physical chamber " *
                 "order (ledger item 6, chamber-relative form)"))
         cvs = try
             ClusterAlgebras.ordered_c_vectors(seed0, seq)
@@ -179,7 +188,7 @@ function _sweep_chamber(cb::ChargeBasis{F}; verify::Bool) where {F}
 end
 
 # The definitive physical validation: the swept states must reproduce the confirmed
-# saddles as a multiset of (mass, wall phase) — matched bijectively.
+# saddles as a multiset of (mass, wall phase) - matched bijectively.
 function _matches_saddles(states, sads; mrtol = 1e-5, ptol = 1e-5)
     length(states) == length(sads) || return false
     used = falses(length(sads))
@@ -201,26 +210,29 @@ end
     bps_spectrum(prob::SchrodingerProblem; theta = nothing, margin = nothing, n = 32,
                  rtol = nothing, verify = true, kwargs...) -> BPSSpectrum
 
-The BPS spectrum of `prob`, computed cluster-algebraically through the M4 bridge:
+The BPS spectrum of `prob`, computed cluster-algebraically through the cluster bridge:
 trace the Stokes graph at `theta` (default: the midpoint of the largest wall-free
 gap), build the [`ideal_triangulation`](@ref) → [`charge_basis`](@ref) →
 [`bridge_seed`](@ref), then construct the physical maximal green sequence greedily
 in chamber-relative wall-phase order. Singularity positions of the Borel-plane walls
 are the returned central charges ``Z_γ``; the Stokes constants are the integer
-``Ω(γ)·⟨γ,γ'⟩`` (verify numerically with [`verify_ddp`](@ref)).
+``Ω(γ)·⟨γ,γ'⟩`` (verify numerically with [`verify_ddp`](@ref)). In physics terms
+this is the BPS spectrum of the ``(A_1, A_{d-1})`` Argyres–Douglas theory at the
+Coulomb-branch point selected by `Q`.
 
 **Every chamber works.** With the signed frame (`src/signed_frame.jl`) the sweep is
-correct in cyclic chambers and in the tree chambers that the M4 layer got wrong, so
-the default `theta` is simply the most numerically comfortable chamber rather than a
+correct in cyclic chambers and in the tree chambers that the original bridge layer
+got wrong, so the default `theta` is simply the most numerically comfortable chamber
+rather than a
 search for one that happens to be right, and any explicit `theta` off a wall is
-equally valid — the spectrum is chamber-independent.
+equally valid - the spectrum is chamber-independent.
 
 `margin`/`n`/`rtol` pass to [`charge_basis`](@ref), remaining `kwargs` to
 [`stokes_graph`](@ref)/[`saddles`](@ref). With `verify = true` (default) the wall
 phases are checked to recede monotonically from `θ₀`, the greedy sequence is
 re-validated as a maximal green sequence (`ClusterAlgebras.ordered_c_vectors`), the
-DT invariants are attached from `ClusterAlgebras.omega`, and — the definitive
-physical gate — the state multiset (mass, wall phase) must reproduce the confirmed
+DT invariants are attached from `ClusterAlgebras.omega`, and - the definitive
+physical gate - the state multiset (mass, wall phase) must reproduce the confirmed
 [`saddles`](@ref). A failure of that gate is now a bug rather than a property of the
 chamber, and throws [`ChamberError`](@ref), as do a non-commuting phase tie (marginal
 stability) and a sweep that fails to close.
@@ -250,8 +262,8 @@ function bps_spectrum(prob::SchrodingerProblem; theta = nothing, margin = nothin
         return BPSSpectrum{F}(BPSState{F}[], Int[], cb, θ0)
     end
 
-    # Any chamber is physical, so take the widest wall-free gap — the most comfortable
-    # θ to trace, not a search. (The M4 layer looped over gaps looking for one whose
+    # Any chamber is physical, so take the widest wall-free gap - the most comfortable
+    # θ to trace, not a search. (The original bridge layer looped over gaps looking for one whose
     # frame happened to be right; the signed frame makes that unnecessary.)
     phases = sort(unique([s.theta for s in saddle_candidates(prob)]))
     gaps = [(i == length(phases) ? phases[1] + F(π) - phases[end] :
@@ -266,7 +278,7 @@ function bps_spectrum(prob::SchrodingerProblem; theta = nothing, margin = nothin
     states, seq = _sweep_chamber(cb; verify)
     verify && !_matches_saddles(states, sads) && throw(ChamberError(
         "the chamber at θ = $(Float64(θ0)) swept $(length(states)) states that do " *
-        "not reproduce the $(length(sads)) confirmed saddles in (mass, phase) — " *
+        "not reproduce the $(length(sads)) confirmed saddles in (mass, phase) - " *
         "with the signed frame this is an internal inconsistency, not a chamber to " *
         "skip over"))
     BPSSpectrum{F}(states, seq, cb, θ0)

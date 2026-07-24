@@ -1,12 +1,12 @@
 # Exact (Voros) quantization conditions, spectral determinants, and the eigenvalue
 # solver. The conditions are built from median-summed Voros multipliers (`_log_voros`,
-# the DDP layer's summation — never re-implemented here) of the spectral cycles at
+# the DDP layer's summation - never re-implemented here) of the spectral cycles at
 # energy E; the eigenvalues are the Newton roots in E.
 #
-# ── M5 quantization ledger (each item pinned by an oracle in test_quantization /
+# ── Quantization ledger (each item pinned by an oracle in test_quantization /
 #    test_double_well) ────────────────────────────────────────────────────────────
 #
-# 1. Well multiplier. With the M5 cycle orientation (quantum_periods ledger) the
+# 1. Well multiplier. With the spectral cycle orientation (quantum_periods ledger) the
 #    well cycle's summed exponent is log V_B = −i·J_qu(E, ħ)/ħ with J_qu > 0 the
 #    all-orders quantum action. SINGLE-WELL exact quantization (all-orders
 #    Bohr–Sommerfeld): 1 + V_B = 0 in the summed sense, i.e.
@@ -22,9 +22,9 @@
 #    median-summed BARRIER multiplier (real, exponentially small; our barrier
 #    orientation gives log V_A ≈ −2S_I/ħ < 0, so V_A = e^{−A} in ZJJ's A):
 #        cos φ = (σ/2)·√(V_A / (1 + V_A)),   σ = parity · (−1)ⁿ,
-#    parity = +1 the even (symmetric) member of doublet n — always the lower one —
+#    parity = +1 the even (symmetric) member of doublet n - always the lower one -
 #    and −1 the odd. The factor ½ is the connection-formula tunneling amplitude
-#    (the Airy 1/2 that a single barrier contributes) — PINNED by the oracle: with
+#    (the Airy 1/2 that a single barrier contributes) - PINNED by the oracle: with
 #    it, the diagonalization eigenvalues converge with WKB order (3.7e-11 at
 #    ħ = 0.1, order 10) and the splitting ratio → 1; WITHOUT it the mean is still
 #    exact but the splitting is exactly 2× too wide (an order-independent factor,
@@ -37,7 +37,7 @@
 # 4. Spectral determinant. Thin, from the same ingredients: single well
 #    D = 1 + V_B; double well D = cos²φ − ¼·V_A/(1+V_A) = ∏_± D_±, the parity
 #    factors D_± = cos φ ∓ ½√(V_A/(1+V_A)). Zeros ⟺ eigenvalues; no Hadamard/ζ
-#    regularization (deliberately out of the M5 scope).
+#    regularization (deliberately out of the spectral layer's scope).
 
 # ── internal: cycles + shared WKB expansion + summed multipliers at one energy ──
 
@@ -130,7 +130,7 @@ The spectral determinant `D(E)` assembled from the same median-summed Voros
 multipliers as [`quantization_condition`](@ref) (ledger item 4): single well
 ``D = 1 + V_B``; symmetric double well ``D = \\cos²φ − ¼V_A/(1+V_A)``, or the parity
 factor ``D_± = \\cos φ ∓ ½\\sqrt{V_A/(1+V_A)}`` when `parity = ±1` is given.
-Zeros in `E` are the eigenvalues. Thin by design — values only, no entire-function
+Zeros in `E` are the eigenvalues. Thin by design - values only, no entire-function
 theory.
 """
 function spectral_determinant(prob::SchrodingerProblem, E, ħ; parity = nothing,
@@ -217,7 +217,7 @@ function _seed_energy(prob::SchrodingerProblem, n, ħ, parity, ::Type{F}) where 
             throw(QuantizationError(
                 "seeding left the supported layout at E = $hi before reaching the " *
                 "Bohr–Sommerfeld action $target (doublet n = $n above the barrier " *
-                "top? — the parity-factorized condition needs the double-well layout)"))
+                "top? - the parity-factorized condition needs the double-well layout)"))
         end
         J_hi ≥ target && break
         step *= 2
@@ -250,7 +250,7 @@ Newton's method in `E` (finite-difference derivative) on
 (bracketed bisection on the classical action). For a symmetric double well pass
 `parity = +1` (even, the lower member of doublet `n`) or `−1` (odd); `n` is then
 the doublet index. `rtol` is the relative tolerance on `E` (default `√eps` of the
-working float type — set it explicitly for BigFloat runs); remaining keywords pass
+working float type - set it explicitly for BigFloat runs); remaining keywords pass
 to [`quantization_condition`](@ref). Throws [`QuantizationError`](@ref) on
 non-convergence.
 """
@@ -270,7 +270,7 @@ function wkb_eigenvalue(prob::SchrodingerProblem, n::Integer, ħ; parity = nothi
     # a step must land strictly inside the supported layout: above the potential
     # floor (below it there is no allowed region), and evaluable without hitting a
     # coalescent/critical energy. The double-well condition oscillates in E, so a
-    # leading-order seed can sit on the wrong slope — backtrack such steps.
+    # leading-order seed can sit on the wrong slope - backtrack such steps.
     function step_to(E, ΔE)
         for _ in 1:60
             En = E - ΔE
