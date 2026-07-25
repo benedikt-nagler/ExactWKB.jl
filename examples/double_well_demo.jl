@@ -1,9 +1,9 @@
-# M3 flagship chain: a double-well Schrödinger problem run through the whole exact-WKB
-# pipeline — turning points → all-orders WKB → Voros symbol on the inner (instanton)
+# A double-well Schrödinger problem run through the whole exact-WKB
+# pipeline - turning points → all-orders WKB → Voros symbol on the inner (instanton)
 # cycle → Borel/Padé from Resurgence on the quantum series → Stokes graph at θ = 0 with
 # the finite saddle edge → a rendered PNG.
 #
-# Run:  julia --project=test examples/m3_flagship.jl
+# Run:  julia --project=test examples/double_well_demo.jl
 
 using ExactWKB
 import Resurgence
@@ -32,7 +32,7 @@ println("\nResurgence handoff:")
 println("  Borel series : ", B)
 println("  Padé poles   : ", round.(Resurgence.poles(P); sigdigits = 4))
 
-# Stokes graph at θ = 0 — the instanton saddle connects the inner turning points.
+# Stokes graph at θ = 0 - the instanton saddle connects the inner turning points.
 g = stokes_graph(prob; theta = 0.0)
 println("\n", sprint((io, v) -> show(io, MIME"text/plain"(), v), g))
 
@@ -42,6 +42,6 @@ foreach(s -> println("  ", s), sad)
 
 # Render the Stokes graph.
 fig = plot_stokes_graph(g)
-out = joinpath(@__DIR__, "m3_double_well_stokes.png")
+out = joinpath(@__DIR__, "double_well_stokes.png")
 CairoMakie.save(out, fig)
 println("\nWrote ", out)

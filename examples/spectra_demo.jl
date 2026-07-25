@@ -1,17 +1,17 @@
-# M5 flagship demonstration: spectra from exact WKB — energy-dependent quantum
+# Spectra from exact WKB - energy-dependent quantum
 # periods, exact (Voros) quantization conditions, median-summed eigenvalues, and the
 # double-well ZJJ/Dunne–Ünsal resurgent structure.
 #
 # Three acts:
-#   1. Quartic oscillator V = z² + z⁴: `wkb_eigenvalue` vs dense diagonalization —
+#   1. Quartic oscillator V = z² + z⁴: `wkb_eigenvalue` vs dense diagonalization -
 #      a digit-count table of the median-summed exact-WKB spectrum.
 #   2. Symmetric double well V = (z²−1)²: the even/odd splitting vs ħ on a log plot
 #      against the one-instanton line  ~ e^{−A_cl/2ħ}.
 #   3. The Dunne–Ünsal P/NP relation verified order by order (c = 3/2 for this
-#      potential), and the Borel plane of the barrier Voros symbol — the A/−A
-#      resonant ray that Resurgence M6b's log sectors were built for.
+#      potential), and the Borel plane of the barrier Voros symbol - the A/−A
+#      resonant ray that Resurgence's log sectors were built for.
 #
-# Run:  julia --project=test examples/m5_flagship.jl
+# Run:  julia --project=test examples/spectra_demo.jl
 
 using ExactWKB
 import Resurgence
@@ -73,7 +73,7 @@ scatter!(ax, 1 ./ hs, splittings; label = "energy_splitting (median-summed)")
 lines!(ax, 1 ./ hs, instanton; color = :orangered,
        label = "√V_A / (dφ/dE)  (one-instanton)")
 axislegend(ax; position = :rt)
-out1 = joinpath(@__DIR__, "m5_splitting.png")
+out1 = joinpath(@__DIR__, "level_splitting.png")
 CairoMakie.save(out1, fig)
 println("Wrote ", out1)
 
@@ -92,7 +92,7 @@ end
 vsA = quantum_period(dwell, :barrier, 0.5; order = 12)
 rA = Resurgence.pade(Resurgence.borel(quantum_series(vsA)); reduce = true)
 figB = Resurgence.plot_borel_plane(rA; rays = [0.0])
-out2 = joinpath(@__DIR__, "m5_borel_barrier.png")
+out2 = joinpath(@__DIR__, "borel_barrier.png")
 CairoMakie.save(out2, figB)
 println("\nBarrier symbol Borel plane (A/−A poles on the real axis): wrote ", out2)
-println("\nM5 flagship complete.")
+println("\nDone.")
