@@ -86,7 +86,7 @@ end
     turning_points(prob::SchrodingerProblem; cluster_tol = nothing) -> Vector{TurningPoint}
 
 The turning points of `prob`: the zeros of ``Q = V − E``, with multiplicities. Roots
-are located with `PolynomialRoots.roots` in `Complex{F}` (`F` = [`_wkb_float`](@ref)
+are located with `PolynomialRoots.roots` in `Complex{F}` (`F` = the working float type
 of the coefficients - `BigFloat` for exact potentials, at the caller's
 `setprecision`), polished by Newton against the exact `Q`, then clustered to collapse
 multiple roots. Sorted deterministically by `(real, imag)`.

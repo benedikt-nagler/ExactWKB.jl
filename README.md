@@ -1,5 +1,7 @@
 # ExactWKB.jl
 
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://benedikt-nagler.github.io/ExactWKB.jl/stable)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://benedikt-nagler.github.io/ExactWKB.jl/dev)
 [![CI](https://github.com/benedikt-nagler/ExactWKB.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/benedikt-nagler/ExactWKB.jl/actions/workflows/CI.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -96,6 +98,20 @@ Padé anywhere in the pipeline:
 ```julia
 sol = solve_tba(sp)                  # conformal-limit GMN integral equations
 ```
+
+## Documentation
+
+The [documentation](https://benedikt-nagler.github.io/ExactWKB.jl/dev) has a manual page per
+layer and three worked tutorials that run the machinery end to end:
+
+- **The cubic, end to end** - one potential from turning points to Borel plane, Stokes graph,
+  triangulation, $A_2$ quiver, BPS spectrum, wall-crossing and TBA.
+- **The double well** - spectra beyond all orders: exact eigenvalues, the $10^{-6}$ level
+  splitting, and the Dunne–Ünsal relation between the perturbative and instanton series.
+- **Seiberg–Witten $SU(2)$** - periods on the $u$-plane, monodromy measured by transport, the
+  wall of marginal stability, both BPS chambers, and Kontsevich–Soibelman wall-crossing.
+
+Build it locally with `julia --project=docs docs/make.jl`.
 
 ## Examples
 

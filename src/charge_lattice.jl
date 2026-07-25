@@ -54,6 +54,11 @@ struct ChargeBasis{F}
     signs::Vector{Int}
 end
 
+"""
+    n_charges(cb::ChargeBasis) -> Int
+
+The rank of the charge lattice: one basis cycle per diagonal of the triangulation.
+"""
 n_charges(cb::ChargeBasis) = length(cb.contours)
 central_charges(cb::ChargeBasis) = cb.central_charges
 

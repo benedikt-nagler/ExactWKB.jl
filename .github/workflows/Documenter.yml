@@ -1,0 +1,60 @@
+name: Documenter
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+
+jobs:
+  docs:
+    name: Build and deploy documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pages: write
+      pull-requests: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1"
+      - uses: julia-actions/cache@v2
+      # ClusterAlgebras.jl and Resurgence.jl are not in the General registry, so Pkg
+      # cannot resolve them by name. Check them out and `develop` them by path - into
+      # the root environment and into docs/, which also needs ExactWKB itself by path.
+      - uses: actions/checkout@v4
+        with:
+          repository: benedikt-nagler/ClusterAlgebras.jl
+          path: deps/ClusterAlgebras.jl
+      - uses: actions/checkout@v4
+        with:
+          repository: benedikt-nagler/Resurgence.jl
+          path: deps/Resurgence.jl
+      - name: Develop unregistered dependencies
+        run: |
+          julia -e '
+            using Pkg
+            siblings = [PackageSpec(path = "deps/ClusterAlgebras.jl"),
+                        PackageSpec(path = "deps/Resurgence.jl")]
+            Pkg.activate(".")
+            Pkg.develop(siblings)
+            Pkg.activate("docs")
+            Pkg.develop([siblings; PackageSpec(path = ".")])'
+        shell: bash
+      - uses: julia-actions/julia-buildpkg@v1
+      # Not julia-actions/julia-docdeploy, which re-resolves docs/ and would lose the
+      # by-path entries for the unregistered dependencies.
+      - name: Build and deploy
+        run: julia --project=docs docs/make.jl
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}

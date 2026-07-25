@@ -56,6 +56,11 @@ struct BPSState{F}
     omega::Int
 end
 
+"""
+    charge(s::BPSState) -> Vector{Int}
+
+The charge ``γ`` of the state, as a `c`-vector in the basis of the charge lattice.
+"""
 charge(s::BPSState) = s.charge
 central_charge(s::BPSState) = s.central_charge
 omega(s::BPSState) = s.omega
@@ -113,6 +118,14 @@ The state charges in spectrum (θ-decreasing) order.
 """
 charges(sp::BPSSpectrum) = [s.charge for s in sp.states]
 
+"""
+    central_charges(sp::BPSSpectrum) -> Vector{Complex}
+    central_charges(cb::ChargeBasis) -> Vector{Complex}
+
+The central charges ``Z_γ``: of the states in spectrum (θ-decreasing) order, or of the
+basis cycles of a [`ChargeBasis`](@ref) (decay-frame representatives - see
+[`physical_charges`](@ref)).
+"""
 central_charges(sp::BPSSpectrum) = [s.central_charge for s in sp.states]
 
 # The greedy phase-ordered sweep on a chamber's charge basis. Returns the swept

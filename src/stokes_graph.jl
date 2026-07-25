@@ -41,6 +41,12 @@ end
 source(l::StokesLine) = l.source
 direction(l::StokesLine) = l.direction
 points(l::StokesLine) = l.points
+"""
+    endpoint(l::StokesLine) -> Symbol
+
+How the traced line ended: `:turning_point` (a saddle connection - it ran into another
+turning point), `:infinity` (it escaped) or `:incomplete` (tracing stopped early).
+"""
 endpoint(l::StokesLine) = l.endpoint
 target(l::StokesLine) = l.target
 mass(l::StokesLine) = l.mass

@@ -65,7 +65,7 @@ end
     WKBExpansion{P}
 
 The WKB/Riccati expansion of a [`SchrodingerProblem`](@ref) to a given `order`:
-holds `S₋₁ … S_order` as [`RiccatiTerm`](@ref)s over an AbstractAlgebra ring (exact
+holds `S₋₁ … S_order` as internal `RiccatiTerm`s over an AbstractAlgebra ring (exact
 `QQ` or `BigFloat` `RealField`, per `arithmetic`). Build with [`wkb_expansion`](@ref);
 extract with [`evaluate_s_odd`](@ref) / [`s_odd_terms`](@ref).
 """
