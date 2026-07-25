@@ -24,8 +24,6 @@ summed, the series gives genuine solutions rather than an approximation, and the
 - the level set ``\mathrm{Im}\left(e^{-i\theta}\int\sqrt{Q}\right) = 0`` - records which
 solution you are on, jumping discontinuously as the summation direction ``\theta`` rotates.
 
-![Stokes graph of the cubic oscillator](assets/cubic_stokes.png)
-
 That last jump is where cluster algebras enter. By the Iwaki-Nakanishi dictionary a generic
 Stokes graph is dual to an ideal triangulation, the jump of the Voros symbols across a wall is
 a cluster ``y``-mutation, and a full circuit of the ``\theta``-plane is a maximal green
