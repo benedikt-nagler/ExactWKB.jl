@@ -39,11 +39,10 @@ from [ClusterAlgebras.jl](https://github.com/benedikt-nagler/ClusterAlgebras.jl)
 
 ## Installation
 
-None of the three packages is registered in General yet. From the Julia REPL:
+Not yet registered in General, but both of its foundations are, so Pkg resolves them by
+name. From the Julia REPL:
 
 ```julia
-pkg> add https://github.com/benedikt-nagler/ClusterAlgebras.jl
-pkg> add https://github.com/benedikt-nagler/Resurgence.jl
 pkg> add https://github.com/benedikt-nagler/ExactWKB.jl
 ```
 

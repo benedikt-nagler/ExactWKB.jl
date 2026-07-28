@@ -38,33 +38,20 @@ jobs:
         with:
           version: ${{ matrix.version }}
       - uses: julia-actions/cache@v2
-      # ClusterAlgebras.jl and Resurgence.jl are not in the General registry, so Pkg
-      # cannot resolve them by name. Check them out and `develop` them by path.
-      - uses: actions/checkout@v4
-        with:
-          repository: benedikt-nagler/ClusterAlgebras.jl
-          path: deps/ClusterAlgebras.jl
-      - uses: actions/checkout@v4
-        with:
-          repository: benedikt-nagler/Resurgence.jl
-          path: deps/Resurgence.jl
-      - name: Develop unregistered dependencies
+      # ClusterAlgebras.jl and Resurgence.jl resolve from the General registry under the
+      # `[compat]` bounds. Only ExactWKB itself is unregistered, and test/Project.toml
+      # lists it, so the test environment needs it by path.
+      - name: Develop ExactWKB into the test environment
         run: |
           julia -e '
             using Pkg
-            siblings = [PackageSpec(path = "deps/ClusterAlgebras.jl"),
-                        PackageSpec(path = "deps/Resurgence.jl")]
-            Pkg.activate(".")
-            Pkg.develop(siblings)
-            # test/Project.toml also lists ExactWKB itself, which is equally
-            # unregistered, so the test environment needs all three by path.
             Pkg.activate("test")
-            Pkg.develop([siblings; PackageSpec(path = ".")])'
+            Pkg.develop(PackageSpec(path = "."))'
         shell: bash
       - uses: julia-actions/julia-buildpkg@v1
       # Run the test environment prepared above directly, rather than via
       # `julia-actions/julia-runtest` (`Pkg.test()`), which re-resolves the test
-      # environment and would lose the by-path entries for the unregistered deps.
+      # environment and would lose the by-path entry for ExactWKB itself.
       - name: Run tests
         run: julia --project=test --code-coverage=user test/runtests.jl
         shell: bash

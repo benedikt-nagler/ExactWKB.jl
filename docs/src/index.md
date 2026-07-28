@@ -37,11 +37,10 @@ Mathieu problem through its own period module. Exact `Rational` input flows thro
 
 ## Installation
 
-Not yet registered in General. From the Julia REPL:
+Not yet registered in General, but both of its foundations are, so Pkg resolves them by
+name. From the Julia REPL:
 
 ```julia
-pkg> add https://github.com/benedikt-nagler/ClusterAlgebras.jl
-pkg> add https://github.com/benedikt-nagler/Resurgence.jl
 pkg> add https://github.com/benedikt-nagler/ExactWKB.jl
 ```
 
