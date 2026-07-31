@@ -689,7 +689,7 @@ end
 
 """
     su2_torus(sw::SeibergWittenSU2, u::Number, theta::AbstractVector; R = 1,
-              chamber = :auto, tower = 4, sigma = -1) -> GMNTorus
+              chamber = :auto, tower = 4, sigma = -1, ħ = 0, order = 0) -> GMNTorus
 
 The finite-radius GMN data of pure ``SU(2)`` at Coulomb modulus `u`: the BPS states of
 [`su2_bps_states`](@ref) in the physical charge basis, the Dirac pairing
@@ -697,13 +697,21 @@ The finite-radius GMN data of pure ``SU(2)`` at Coulomb modulus `u`: the BPS sta
 [`sw_periods`](@ref) - which are needed explicitly because the electric direction
 ``(0,1)`` carries no BPS state of its own.
 
+With `order = m ≥ 1` **both** the state central charges and the basis pair carry their
+Nekrasov–Shatashvili corrections through `ħ^{2m}`, from one and the same period
+evaluation - which is what keeps them consistent under the cross-check in
+[`gmn_torus`](@ref). Nothing downstream changes: the twistor solver, the metric layer
+and the diagnostics consume `Z` as data. `ħ = 0` reproduces the classical torus.
+
 Pass `(u, θ) -> su2_torus(sw, u, θ; R)` to [`metric_point`](@ref) to get the metric on
 the SU(2) moduli space.
 """
 function su2_torus(sw::SeibergWittenSU2, u::Number, theta::AbstractVector; R = 1,
-                   chamber::Symbol = :auto, tower::Integer = 4, sigma = -1)
-    states = su2_bps_states(sw, u; chamber, tower)
-    a, aD = sw_periods(sw, u)
+                   chamber::Symbol = :auto, tower::Integer = 4, sigma = -1,
+                   ħ = 0, order::Integer = 0)
+    aD, a = _ns_periods(sw, u, ħ, order, _sw_float(sw, u))
+    resolved = chamber === :auto ? sw_chamber(sw, u; ħ, order) : chamber
+    states = _su2_states(aD, a, resolved, tower)
     gmn_torus(states, su2_pairing(); R, theta, sigma, basis_Z = [aD, a])
 end
 

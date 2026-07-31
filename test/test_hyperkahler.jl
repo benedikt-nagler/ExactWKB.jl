@@ -306,4 +306,55 @@
         @test d.asymmetry < 1e-5
         @test all(>(0), d.eigenvalues)
     end
+
+    @testset "chamber independence under the NS deformation" begin
+        # Does the previous testset's result survive when the classical central charges
+        # are replaced by the Nekrasov–Shatashvili quantum periods? There is no theorem
+        # either way: KS wall-crossing is a statement about the classical Z, and the wall
+        # itself moves under the deformation.
+        #
+        # The answer is yes, and structurally so: the GMN equations see the BPS data only
+        # through (charges, Ω, Z), and the KS identity that makes the two chamber spectra
+        # interchangeable lives at the charge/Ω level, which the deformation does not
+        # touch. What the deformation actually does is move the wall (see the deformed-wall
+        # testset in test_sw_curve.jl), i.e. relabel which chamber a given u belongs to.
+        sw = SeibergWittenSU2()
+        u = ms_wall(sw; n = 64)[9] * 1.05
+        R = 1.2
+        θw = [0.5, 0.9]
+        strong(h, o) = (x, th) -> su2_torus(sw, x, th; R, chamber = :strong, ħ = h, order = o)
+        weak(h, o) = (x, th) -> su2_torus(sw, x, th; R, chamber = :weak, tower = 4,
+                                          ħ = h, order = o)
+
+        # the gate: ħ = 0 at order 1 must reproduce the classical metric exactly. If this
+        # slips, nothing below means anything.
+        gs0 = hk_metric(strong(0, 0), u, θw)
+        @test hk_metric(strong(0.0, 1), u, θw) == gs0
+
+        # the headline: chamber independence holds at the same 1e-6 relative bar the
+        # classical result meets, at every ħ we can trust the order-1 truncation at, and
+        # at order 2 as well
+        for (h, o) in ((0.1, 1), (0.3, 1), (0.6, 1), (0.2, 2))
+            gs = hk_metric(strong(h, o), u, θw)
+            gw = hk_metric(weak(h, o), u, θw)
+            @test maximum(abs, gs - gw) < 1e-6 * maximum(abs, gs)
+        end
+
+        # and it is not vacuous: the deformed metric genuinely moves, by O(ħ²) - three
+        # orders of magnitude more than the chamber discrepancy it leaves untouched
+        move(h) = maximum(abs, hk_metric(strong(h, 1), u, θw) - gs0) / maximum(abs, gs0)
+        m1, m2 = move(0.1), move(0.2)
+        @test m1 > 1e-4
+        @test isapprox(log(m2 / m1) / log(2), 2; atol = 0.05)
+
+        # deformed special geometry still holds: ϖ(ζ) stays Laurent of degrees −1, 0, 1,
+        # and the deformed metric is still a bona fide hyperkähler one
+        mpd = metric_point(weak(0.3, 1), u, θw)
+        @test symplectic_expansion(mpd).residual < 1e-7
+        dd = hk_diagnostics(mpd)
+        @test dd.residual < 1e-7
+        @test dd.imaginary < 1e-5
+        @test dd.asymmetry < 1e-5
+        @test all(>(0), dd.eigenvalues)
+    end
 end

@@ -73,6 +73,52 @@ const CA = ExactWKB.ClusterAlgebras
         @test length(su2_bps_states(sw, 10.0; chamber = :strong)) == 2
     end
 
+    @testset "the NS-deformed spectrum" begin
+        sw = SeibergWittenSU2()
+        u = 1.9 + 0.8im
+
+        # ħ = 0 at order 1 is the classical spectrum exactly, state for state
+        for ch in (:strong, :weak)
+            s0 = su2_bps_states(sw, u; chamber = ch)
+            s1 = su2_bps_states(sw, u; chamber = ch, ħ = 0.0, order = 1)
+            @test length(s0) == length(s1)
+            @test all(charge(a) == charge(b) for (a, b) in zip(s0, s1))
+            @test all(ExactWKB.omega(a) == ExactWKB.omega(b) for (a, b) in zip(s0, s1))
+            @test all(central_charge(a) == central_charge(b) for (a, b) in zip(s0, s1))
+        end
+
+        # the deformation moves Z but not the BPS quiver: charges and Ω are untouched
+        # (ledger item 3), and the mass shift scales as ħ²
+        s0 = su2_bps_states(sw, u; chamber = :weak, tower = 4)
+        shift(h) = maximum(abs(central_charge(a) - central_charge(b)) for (a, b) in
+                           zip(s0, su2_bps_states(sw, u; chamber = :weak, tower = 4,
+                                                  ħ = h, order = 1)))
+        for h in (0.1, 0.2)
+            sh = su2_bps_states(sw, u; chamber = :weak, tower = 4, ħ = h, order = 1)
+            @test all(charge(a) == charge(b) for (a, b) in zip(s0, sh))
+            @test all(ExactWKB.omega(a) == ExactWKB.omega(b) for (a, b) in zip(s0, sh))
+        end
+        @test isapprox(log(shift(0.2) / shift(0.1)) / log(2), 2; atol = 0.05)
+
+        # the deformed Z is n_m a_D + n_e a from the *same* deformed pair - which is what
+        # makes the twistor layer's basis/state cross-check pass by construction
+        qs = quantum_sw_periods(sw, u; order = 1)
+        h = 0.3
+        aD = Resurgence.evaluate(qs.a_D, h)
+        a = Resurgence.evaluate(qs.a, h)
+        for s in su2_bps_states(sw, u; chamber = :weak, tower = 2, ħ = h, order = 1)
+            nm, ne = charge(s)
+            @test central_charge(s) ≈ nm * aD + ne * a
+        end
+
+        # :auto resolves against the deformed wall, which at ħ = 0 is the classical one
+        auto0 = su2_bps_states(sw, u)
+        auto1 = su2_bps_states(sw, u; ħ = 0.0, order = 1)
+        @test length(auto0) == length(auto1)
+        @test all(charge(a) == charge(b) && central_charge(a) == central_charge(b)
+                  for (a, b) in zip(auto0, auto1))
+    end
+
     @testset "phase accumulation onto the W-boson (geometry tie)" begin
         sw = SeibergWittenSU2()
         u = 25.0

@@ -538,6 +538,29 @@ _electric_ns(sw::SeibergWittenSU2, u, m::Integer, F) =
 _magnetic_ns(sw::SeibergWittenSU2, u, m::Integer, F) =
     _period_correction(sw, u, _magnetic_aD_closed(sw, u, F), _daD_du_closed(sw, u, F), m, F)
 
+# The NS-deformed period pair (a_D, a) at a *numeric* ħ, built once. Every consumer of a
+# deformed central charge - `central_charge`, the wall, `su2_bps_states`, `su2_torus` -
+# goes through here, for two reasons: state central charges and basis central charges can
+# then never disagree (the twistor layer cross-validates them), and the order-m operator,
+# which `_ns_period_operator` rebuilds from the Riccati recursion on every call, is built
+# once per (u, order) instead of once per charge.
+#
+# The ħ loop runs even at ħ = 0 whenever order ≥ 1: multiplying the corrections by zero is
+# the honest ħ → 0 limit and keeps that limit a genuine test of this code path.
+function _ns_periods(sw::SeibergWittenSU2, u, ħ, order::Integer, F)
+    order ≥ 0 || throw(PeriodError("order must be ≥ 0 (got $order)"))
+    a = complex(_electric_a_closed(sw, u, F))
+    aD = complex(_magnetic_aD_closed(sw, u, F))
+    order ≥ 1 || return (aD, a)
+    _check_ns_singular(sw, u)
+    for m in 1:order
+        h = F(ħ)^(2m)
+        a += complex(_electric_ns(sw, u, m, F)) * h
+        aD += complex(_magnetic_ns(sw, u, m, F)) * h
+    end
+    (aD, a)
+end
+
 # Independent oracle for the electric correction at any order: evaluate R_{2m}(x)
 # POINTWISE on Taylor jets in x (every W^{(k)}(x) is closed-form) and quadrature it.
 # This path uses none of the ring reductions, the power-to-derivative dictionary or
@@ -625,16 +648,8 @@ corrections through `ħ^{2m}` (the Picard–Fuchs-reduced operators, valid on th
 is `abs(central_charge(...))`. This is the seam the spectrum/wall layer consumes.
 """
 function central_charge(sw::SeibergWittenSU2, u, charge::NTuple{2,Int}; ħ = 0, order::Integer = 0)
-    order ≥ 0 || throw(PeriodError("order must be ≥ 0 (got $order)"))
-    F = _sw_float(sw, u)
+    aD, a = _ns_periods(sw, u, ħ, order, _sw_float(sw, u))
     nm, ne = charge
-    a = _electric_a_closed(sw, u, F)
-    aD = _magnetic_aD_closed(sw, u, F)
-    order ≥ 1 && _check_ns_singular(sw, u)
-    for m in 1:order
-        a += complex(_electric_ns(sw, u, m, F)) * F(ħ)^(2m)
-        aD += complex(_magnetic_ns(sw, u, m, F)) * F(ħ)^(2m)
-    end
     nm * aD + ne * a
 end
 
@@ -712,17 +727,19 @@ end
 
 # ── the wall of marginal stability ─────────────────────────────────────────────────
 
-# Im(a_D/a) at u - the wall is its zero set
-function _wall_ratio_im(sw::SeibergWittenSU2, u, F)
-    imag(_magnetic_aD_closed(sw, u, F) / _electric_a_closed(sw, u, F))
+# Im(a_D/a) at u - the wall is its zero set. Both periods carry the same (ħ, order)
+# deformation, so ħ = 0 or order = 0 recovers the classical ratio exactly.
+function _wall_ratio_im(sw::SeibergWittenSU2, u, F; ħ = 0, order::Integer = 0)
+    aD, a = _ns_periods(sw, u, ħ, order, F)
+    imag(aD / a)
 end
 
 # wall radius along the ray arg(u) = φ (φ strictly off the real axis): grid scan for a
 # sign change of Im(a_D/a) in r/2Λ² ∈ (0, 1.5], then bisection
-function _wall_radius(sw::SeibergWittenSU2, φ, F)
+function _wall_radius(sw::SeibergWittenSU2, φ, F; ħ = 0, order::Integer = 0)
     R = 2 * F(sw.Λ)^2
     dir = cis(F(φ))
-    f(r) = _wall_ratio_im(sw, r * R * dir, F)
+    f(r) = _wall_ratio_im(sw, r * R * dir, F; ħ, order)
     rs = range(F(1) / 20, F(3) / 2; length = 60)
     lo = hi = zero(F)
     flo = zero(F)
@@ -753,7 +770,8 @@ function _wall_radius(sw::SeibergWittenSU2, φ, F)
 end
 
 """
-    ms_wall(sw::SeibergWittenSU2; n::Integer = 64) -> Vector{<:Complex}
+    ms_wall(sw::SeibergWittenSU2; n::Integer = 64, ħ = 0, order::Integer = 0)
+        -> Vector{<:Complex}
 
 The wall of marginal stability ``\\{u : a_D/a ∈ ℝ\\}`` - the closed curve through the
 singular points ``±2Λ²`` separating the strong-coupling chamber (2 BPS states) from
@@ -761,33 +779,45 @@ the weak-coupling chamber (W-boson + dyon towers). Traced by bisection of
 ``\\mathrm{Im}(a_D/a)`` along `n` rays in each half-plane; returns the curve as an
 ordered list of `2n + 2` points starting at the monopole point `2Λ²`, through the
 upper half-plane to the dyon point `−2Λ²`, and back through the lower half-plane
-(conjugation symmetry). See also [`sw_chamber`](@ref).
+(conjugation symmetry).
+
+With `order = m ≥ 1` the wall is traced from the Nekrasov–Shatashvili deformed periods
+at the given `ħ` (both periods deformed to the same order, see
+[`quantum_sw_periods`](@ref)), so the curve is the deformed wall; `ħ = 0` recovers the
+classical one exactly. The deformed corrections diverge as ``u → ±2Λ²``, so the traced
+points nearest the two endpoints lose accuracy first. See also [`sw_chamber`](@ref).
 """
-function ms_wall(sw::SeibergWittenSU2; n::Integer = 64)
+function ms_wall(sw::SeibergWittenSU2; n::Integer = 64, ħ = 0, order::Integer = 0)
     n ≥ 2 || throw(Resurgence.InvalidArgument("n must be ≥ 2, got $n"))
     F = typeof(float(sw.Λ))
-    upper = [_wall_radius(sw, k * F(π) / (n + 1), F) * cis(k * F(π) / (n + 1)) for k in 1:n]
+    upper = [_wall_radius(sw, k * F(π) / (n + 1), F; ħ, order) * cis(k * F(π) / (n + 1))
+             for k in 1:n]
     monopole = complex(2 * F(sw.Λ)^2)
     vcat(monopole, upper, -monopole, conj.(reverse(upper)))
 end
 
 """
-    sw_chamber(sw::SeibergWittenSU2, u::Number) -> Symbol
+    sw_chamber(sw::SeibergWittenSU2, u::Number; ħ = 0, order::Integer = 0) -> Symbol
 
 Which side of the wall of marginal stability the modulus `u` lies on: `:strong`
 (inside - BPS spectrum is monopole + dyon) or `:weak` (outside - W-boson + dyon
 towers). Points on the wall itself count as `:weak`; on the real axis the wall meets
 `ℝ` only at `±2Λ²`, so real `u` is `:strong` iff `|u| < 2Λ²`. This is the chamber
 seam consumed by `su2_bps_states(...; chamber = :auto)`.
+
+`order = m ≥ 1` measures against the **deformed** wall at the given `ħ`, i.e. the zero
+set of `Im(a_D/a)` with both periods carrying their Nekrasov–Shatashvili corrections
+through `ħ^{2m}` (see [`ms_wall`](@ref)). The real-axis shortcut is retained under
+deformation - see the deformed-wall ledger item in `sw_bps.jl`.
 """
-function sw_chamber(sw::SeibergWittenSU2, u::Number)
+function sw_chamber(sw::SeibergWittenSU2, u::Number; ħ = 0, order::Integer = 0)
     F = _sw_float(sw, u)
     R = 2 * F(sw.Λ)^2
     if imag(complex(u)) == 0
         return abs(real(u)) < R ? (:strong) : (:weak)
     end
     φ = abs(angle(Complex{F}(u)))
-    abs(u) < _wall_radius(sw, φ, F) ? (:strong) : (:weak)
+    abs(u) < _wall_radius(sw, φ, F; ħ, order) ? (:strong) : (:weak)
 end
 
 # ── monodromy ──────────────────────────────────────────────────────────────────────

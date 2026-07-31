@@ -15,6 +15,21 @@
 # Central charges Z_γ(u) = n_m a_D + n_e a come from rung 1; both dyon towers' phases
 # accumulate onto arg Z_δ = arg(a) from opposite sides (marginal stability).
 #
+# ── Deformed-wall ledger (ours, not forced) ───────────────────────────────────────────
+# 1. Under the Nekrasov–Shatashvili deformation the wall of marginal stability is taken to
+#    be the zero set of Im(a_D/a) with **both** periods deformed to the same (ħ, order).
+#    The alternative - deform only one period, or mix orders - is not excluded by anything
+#    in the physics; this choice is the one that keeps the wall the locus where the BPS
+#    rays of the two chamber spectra actually align, since both spectra are built from the
+#    same deformed pair. Pinned by: ms_wall(...; ħ = 0) reproducing the classical wall
+#    exactly, and by the deformed wall converging to it as ħ → 0.
+# 2. The real-axis shortcut in `sw_chamber` (real u is :strong iff |u| < 2Λ²) is retained
+#    under deformation. Justification: the NS corrections are real-coefficient
+#    Picard–Fuchs operators applied to the classical periods, so they inherit the Schwarz
+#    reflection symmetry that puts the wall's only real crossings at ±2Λ².
+# 3. The charge content and Ω values are NOT deformed - only the central charges are. The
+#    NS deformation is a deformation of the periods, not of the BPS quiver.
+#
 # The wall-crossing is checked classically and self-validatingly (see `verify_su2_wall_crossing`):
 # closure of the ray-automorphism identity to a given degree simultaneously pins the spectrum
 # content, the Ω values (including the −2 vector factor), the ordering, and the (here trivial -
@@ -55,9 +70,22 @@ function _su2_rays(chamber::Symbol, tower::Integer)
     end
 end
 
+# the chamber's states from an already-computed period pair, so a caller that also needs
+# (a_D, a) itself - the twistor layer - shares one `_ns_periods` call instead of rebuilding
+# the NS operator per charge
+function _su2_states(aD::Complex{F}, a::Complex{F}, resolved::Symbol,
+                     tower::Integer) where {F}
+    states = BPSState{F}[]
+    for ((p, q), Ω) in _su2_rays(resolved, tower)
+        γ = _phys_charge(p, q)
+        push!(states, BPSState([γ[1], γ[2]], γ[1] * aD + γ[2] * a, Ω))
+    end
+    states
+end
+
 """
-    su2_bps_states(sw::SeibergWittenSU2, u::Number; chamber = :auto, tower = 4)
-        -> Vector{BPSState}
+    su2_bps_states(sw::SeibergWittenSU2, u::Number; chamber = :auto, tower = 4,
+                   ħ = 0, order = 0) -> Vector{BPSState}
 
 The BPS spectrum of pure ``SU(2)`` at Coulomb modulus `u`, phase-ordered. The default
 `chamber = :auto` resolves the chamber from the wall of marginal stability via
@@ -67,18 +95,17 @@ the preprojective/preinjective dyon towers truncated at `tower`. Each
 [`BPSState`](@ref) carries its physical charge `(n_m,n_e)`, its central charge
 `Z_γ = n_m a_D + n_e a` evaluated at `u` anywhere on the `u`-plane
 ([`central_charge`](@ref)), and its DT invariant `omega`.
+
+With `order = m ≥ 1` the central charges carry their Nekrasov–Shatashvili corrections
+through `ħ^{2m}` ([`quantum_sw_periods`](@ref)), and `chamber = :auto` resolves against
+the **deformed** wall at the same `ħ`. Charges and `omega` values are unchanged - the
+deformation acts on the periods, not on the BPS quiver.
 """
 function su2_bps_states(sw::SeibergWittenSU2, u::Number; chamber::Symbol = :auto,
-                        tower::Integer = 4)
-    resolved = chamber === :auto ? sw_chamber(sw, u) : chamber
-    rays = _su2_rays(resolved, tower)
-    states = BPSState{typeof(float(real(u)))}[]
-    for ((a, b), Ω) in rays
-        γ = _phys_charge(a, b)
-        Z = central_charge(sw, u, γ)
-        push!(states, BPSState([γ[1], γ[2]], Z, Ω))
-    end
-    states
+                        tower::Integer = 4, ħ = 0, order::Integer = 0)
+    aD, a = _ns_periods(sw, u, ħ, order, _sw_float(sw, u))
+    resolved = chamber === :auto ? sw_chamber(sw, u; ħ, order) : chamber
+    _su2_states(aD, a, resolved, tower)
 end
 
 # ── classical Kontsevich–Soibelman wall-crossing (self-validating) ─────────────────────

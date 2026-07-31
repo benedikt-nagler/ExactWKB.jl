@@ -444,6 +444,43 @@ mathieu_b(q, r; nmax = 24) = iseven(r) ? _mathieu_b_even(q, nmax)[r ÷ 2] :
         @test sw_chamber(sw2, 4.0 * 2.5im) == :weak
     end
 
+    @testset "the NS-deformed wall of marginal stability" begin
+        # The wall is Im(a_D/a) = 0 with BOTH periods deformed to the same (ħ, order) -
+        # see the deformed-wall ledger in src/sw_bps.jl. ħ = 0 must be the classical wall
+        # bit-for-bit, since the ħ loop multiplies the corrections by zero rather than
+        # skipping them.
+        sw = SeibergWittenSU2()
+        w0 = ms_wall(sw; n = 16)
+        @test ms_wall(sw; n = 16, ħ = 0.0, order = 1) == w0
+        @test ms_wall(sw; n = 16, ħ = 0.7, order = 0) == w0     # order 0 ignores ħ
+
+        # the deformed wall moves outward, and the displacement scales as ħ² (the leading
+        # NS correction is O(ħ²), and the wall depends on the periods smoothly). Endpoints
+        # ±2Λ² are excluded: the corrections diverge there.
+        idx = 2:16
+        disp(h) = maximum(abs.(ms_wall(sw; n = 16, ħ = h, order = 1)[idx] .- w0[idx]))
+        d1, d2 = disp(0.15), disp(0.3)
+        @test 0 < d1 < d2
+        @test isapprox(log(d2 / d1) / log(2), 2; atol = 0.1)
+
+        # the sharp consequence: between the classical and the deformed wall lies a region
+        # whose chamber assignment the deformation flips
+        h = 0.6
+        wh = ms_wall(sw; n = 64, ħ = h, order = 1)
+        w = ms_wall(sw; n = 64)
+        k = findfirst(j -> sw_chamber(sw, w[j] * (1 + abs(wh[j]) / abs(w[j])) / 2) !==
+                           sw_chamber(sw, w[j] * (1 + abs(wh[j]) / abs(w[j])) / 2;
+                                      ħ = h, order = 1), 5:60)
+        @test k !== nothing
+        u = w[4 + k] * (1 + abs(wh[4 + k]) / abs(w[4 + k])) / 2
+        @test sw_chamber(sw, u) === :strong
+        @test sw_chamber(sw, u; ħ = h, order = 1) === :weak
+
+        # and ħ = 0 leaves every chamber verdict alone
+        @test all(u -> sw_chamber(sw, u; ħ = 0.0, order = 1) === sw_chamber(sw, u),
+                  [0.5 + 0.5im, 1.5 + 0.8im, 3.0 + 2.0im, 10.0im, -1.2 + 0.3im])
+    end
+
     @testset "errors" begin
         sw = SeibergWittenSU2()
         @test_throws PeriodError sw_periods(sw, -2.0)         # dyon branch point
