@@ -118,5 +118,39 @@ function q_derivative_at(prob::SchrodingerProblem, z)
     _horner(dq, z)
 end
 
+"""
+    q_taylor_at(prob::SchrodingerProblem, z0) -> Vector
+
+The Taylor coefficients of ``Q`` about `z0` in **ascending** order: the returned
+`t` satisfies ``Q(z) = Σ_k t[k+1] (z − z_0)^k``, so `t[1] = Q(z₀)`,
+`t[2] = Q′(z₀)` and `t[m+1] = Q^{(m)}(z₀)/m!`.
+
+Computed by repeated synthetic division, so the result is **exact** whenever the
+coefficient type and `z0` are (`Rational`, `Integer`). This is how the leading
+coefficient ``c_m`` of a turning point of order `m` is read off - the datum that
+sets its Stokes-ray directions (see [`stokes_graph`](@ref)).
+"""
+function q_taylor_at(prob::SchrodingerProblem, z0)
+    q = q_coefficients(prob)
+    T = typeof(zero(eltype(q)) * zero(z0) + zero(eltype(q)))
+    a = T[T(c) for c in q]
+    out = T[]
+    while true
+        n = length(a)
+        if n == 1
+            push!(out, a[1])
+            break
+        end
+        b = Vector{T}(undef, n - 1)
+        b[n - 1] = a[n]
+        for i in (n - 1):-1:2
+            b[i - 1] = a[i] + z0 * b[i]
+        end
+        push!(out, a[1] + z0 * b[1])
+        a = b
+    end
+    out
+end
+
 Base.:(==)(p::SchrodingerProblem, q::SchrodingerProblem) =
     p.var == q.var && p.energy == q.energy && p.v_coeffs == q.v_coeffs

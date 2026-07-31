@@ -6,6 +6,7 @@ authors = ["Benedikt Nagler <benedikt.nagler@protonmail.com>"]
 [deps]
 AbstractAlgebra = "c3fe647b-3220-5bb0-a1ea-a7954cac585d"
 ClusterAlgebras = "8a79f08c-43aa-40ef-a276-b8dea658c9b1"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 OrdinaryDiffEqTsit5 = "b1df2697-797e-41e3-8120-5422d3b24e4a"
 PolynomialRoots = "3a141323-8675-5d76-9d11-e1df1406c778"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
@@ -21,6 +22,7 @@ ExactWKBMakieExt = "Makie"
 [compat]
 AbstractAlgebra = "0.50"
 ClusterAlgebras = "0.1"
+LinearAlgebra = "1"
 Makie = "0.24"
 OrdinaryDiffEqTsit5 = "1"
 PolynomialRoots = "1"

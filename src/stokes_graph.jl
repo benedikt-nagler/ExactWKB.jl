@@ -1,6 +1,6 @@
 # Stokes graphs of a Schrödinger problem.
 #
-# A Stokes line emanating from a simple turning point z₀ is the locus
+# A Stokes line emanating from a turning point z₀ is the locus
 # `Im[e^{−iθ} ∫_{z₀}^z √Q dz] = 0`. We trace it with an *augmented state* `(z, w)`,
 # `w = √Q(z)`, evolving under
 #
@@ -10,6 +10,16 @@
 # and `t` is *exactly* the mass parameter - no discrete branch choices are ever made,
 # which is the whole point (branch cuts are the top correctness risk). A per-step
 # re-projection `w → ±√Q(z)` snaps the tiny integration drift back onto the shell.
+#
+# Degenerate turning points. At a zero of order `m`, `Q ≈ c_m (z−z₀)^m` with
+# `c_m = Q^{(m)}(z₀)/m!`, so `∫√Q ≈ √c_m (z−z₀)^{m/2+1}/(m/2+1)` and the Stokes
+# condition puts `m+2` rays at `arg(z−z₀) = (2θ − arg c_m + 2πk)/(m+2)`, `k = 0…m+1`
+# (`m = 1` is the familiar trivalent case). For **even** `m` the point is not a branch
+# point of `w² = Q` - `√Q` is single-valued there and the spectral curve has a node -
+# and opposite rays sit exactly `π` apart, so a double turning point is a *crossing of
+# two smooth Stokes curves* rather than a vertex. The augmented-state tracer needs no
+# other change: it never makes a discrete branch choice, which is exactly why it
+# generalizes. See [BNR82] for the new Stokes curves such points emit.
 #
 # The tracer runs in `Float64` by default: a Stokes graph's content is its *topology*,
 # a discrete datum, so double precision is plenty; `bigfloat = true` opts in to the
@@ -23,8 +33,9 @@ import OrdinaryDiffEqTsit5 as ODE
     StokesLine{F}
 
 One traced Stokes line. `source` is the index (into the graph's `turning_points`) of
-the simple turning point it emanates from, `direction ∈ 0:2` selects which of the
-three rays, and `points` is the traced polyline in the `z`-plane. `endpoint` is one of
+the turning point it emanates from, `direction ∈ 0:(m+1)` selects which of the `m+2`
+rays of an order-`m` point, and `points` is the traced polyline in the `z`-plane
+(`m = 1` gives the usual three rays). `endpoint` is one of
 `:turning_point` (a saddle - `target` is the index of the turning point it runs into),
 `:infinity` (an infinite ray - `target === nothing`), or `:incomplete` (tracing gave
 up at `max_mass`). `mass` is the accumulated mass parameter `t` at the endpoint.
@@ -82,13 +93,20 @@ lines(g::StokesGraph) = g.lines
 @inline _Q(prob, z) = prob(z)
 @inline _dQ(prob, z) = q_derivative_at(prob, z)
 
-# Trace a single ray. Returns (points, endpoint, target_idx, mass).
+# The leading Taylor coefficient c_m = Q^{(m)}(z₀)/m! of an order-m turning point, in
+# the tracer's float type. `q_taylor_at` is exact when the coefficients are.
+function _leading_coeff(prob, z0::Complex{F}, m::Int) where {F}
+    Complex{F}(q_taylor_at(prob, z0)[m + 1])
+end
+
+# Trace a single ray. Returns (points, endpoint, target_idx, mass). `nrays = m + 2` and
+# `c` is the order-m leading coefficient; `m = 1` recovers `nrays = 3`, `c = Q′(z₀)`.
 function _trace_ray(prob, tps::Vector{Complex{F}}, src::Int, k::Int, θ::F;
+                    nrays::Int, c::Complex{F},
                     seed_radius, hit_radius, escape_radius, max_mass,
                     reltol, abstol) where {F}
     z0 = tps[src]
-    c = _dQ(prob, z0)                      # Q′(z₀); c ≠ 0 at a simple turning point
-    dir = (2θ - angle(c) + 2 * F(π) * k) / 3
+    dir = (2θ - angle(c) + 2 * F(π) * k) / nrays
     zseed = z0 + F(seed_radius) * cis(dir)
     w = sqrt(_Q(prob, zseed))
     # Orient the seed so the ray leaves z₀ outward: dz/dt = e^{iθ}/w must point along dir.
@@ -159,13 +177,16 @@ end
 """
     stokes_graph(prob::SchrodingerProblem; theta = 0.0, bigfloat = false, kwargs...)
 
-Trace the Stokes graph of `prob` at phase `theta`. Three rays are seeded at each simple
-turning point `z₀` in the directions `arg(z − z₀) = (2θ − arg Q′(z₀) + 2πk)/3`,
-`k = 0,1,2`, and integrated until they escape to infinity, run into another turning
-point (a saddle), or hit the `max_mass` safety.
+Trace the Stokes graph of `prob` at phase `theta`. At a turning point `z₀` of order `m`
+(so `Q ≈ c_m (z−z₀)^m`), `m + 2` rays are seeded in the directions
+`arg(z − z₀) = (2θ − arg c_m + 2πk)/(m+2)`, `k = 0 … m+1`, and integrated until they
+escape to infinity, run into another turning point (a saddle), or hit the `max_mass`
+safety. A simple turning point gives the familiar three rays with `c_1 = Q′(z₀)`.
 
-Turning points of order ≥ 2 are classified fine but cannot be traced through - they
-throw [`UnsupportedTurningPoint`](@ref) (Weber local models are deferred).
+**Degenerate turning points** (order ≥ 2) are traced, not refused: see
+[`is_degenerate`](@ref). An order-2 point emits four rays and is a *crossing* of two
+smooth Stokes curves rather than a vertex, because `√Q` is single-valued there. The
+downstream triangulation layer still requires an all-simple graph.
 
 Keyword arguments (all with geometry-scaled defaults): `seed_radius`, `hit_radius`,
 `escape_radius`, `max_mass`, `reltol`, `abstol`, and `allow_incomplete` (default
@@ -178,15 +199,9 @@ function stokes_graph(prob::SchrodingerProblem; theta = 0.0, bigfloat::Bool = fa
                       allow_incomplete::Bool = false)
     F = bigfloat ? BigFloat : Float64
     all_tps = turning_points(prob)
-    simple = filter(is_simple, all_tps)
-    bad = filter(t -> !is_simple(t), all_tps)
-    if !isempty(bad)
-        b = first(bad)
-        throw(UnsupportedTurningPoint(location(b), order(b)))
-    end
-    isempty(simple) && throw(InvalidPotential("no simple turning points to trace"))
+    isempty(all_tps) && throw(InvalidPotential("no turning points to trace"))
 
-    tps_F = [TurningPoint{F}(Complex{F}(location(t)), order(t)) for t in simple]
+    tps_F = [TurningPoint{F}(Complex{F}(location(t)), order(t)) for t in all_tps]
     tps_z = [t.z for t in tps_F]
     θ = F(theta)
 
@@ -213,16 +228,21 @@ function stokes_graph(prob::SchrodingerProblem; theta = 0.0, bigfloat::Bool = fa
     at = F(something(abstol, bigfloat ? 1e-24 : 1e-12))
 
     ls = StokesLine{F}[]
-    for s in eachindex(tps_z), k in 0:2
-        pts, ep, tgt, m = _trace_ray(prob, tps_z, s, k, θ;
-                                     seed_radius = sr, hit_radius = hr,
-                                     escape_radius = er, max_mass = mm,
-                                     reltol = rt, abstol = at)
-        if ep === :incomplete && !allow_incomplete
-            throw(TracingFailed("ray $k from turning point $s reached max_mass = " *
-                                "$mm without escaping or hitting a turning point"))
+    for s in eachindex(tps_z)
+        ms = order(tps_F[s])
+        nrays = ms + 2
+        c = _leading_coeff(prob, tps_z[s], ms)
+        for k in 0:(nrays - 1)
+            pts, ep, tgt, m = _trace_ray(prob, tps_z, s, k, θ; nrays, c,
+                                         seed_radius = sr, hit_radius = hr,
+                                         escape_radius = er, max_mass = mm,
+                                         reltol = rt, abstol = at)
+            if ep === :incomplete && !allow_incomplete
+                throw(TracingFailed("ray $k from turning point $s reached max_mass = " *
+                                    "$mm without escaping or hitting a turning point"))
+            end
+            push!(ls, StokesLine{F}(s, k, pts, ep, tgt, m))
         end
-        push!(ls, StokesLine{F}(s, k, pts, ep, tgt, m))
     end
     StokesGraph{F}(prob, θ, tps_F, ls)
 end
@@ -260,13 +280,33 @@ Number of Stokes lines escaping to infinity.
 n_infinite_lines(g::StokesGraph) = count(l -> l.endpoint === :infinity, g.lines)
 
 """
+    is_degenerate(g::StokesGraph) -> Bool
+
+`true` when `g` has a turning point of order ≥ 2. Such a graph is a *wall*: the
+degenerate point splits into simple ones under any generic perturbation, and the
+`(m+2)`-gon it is dual to admits several triangulations. The triangulation and bridge
+layers require `!is_degenerate(g)`.
+"""
+is_degenerate(g::StokesGraph) = any(!is_simple, g.turning_points)
+
+"""
+    turning_point_orders(g::StokesGraph) -> Vector{Int}
+
+The multiplicities of `g`'s turning points, sorted ascending. `all(== 1)` for a
+generic graph; see [`is_degenerate`](@ref).
+"""
+turning_point_orders(g::StokesGraph) = sort!([order(t) for t in g.turning_points])
+
+"""
     topology_signature(g::StokesGraph) -> Tuple
 
-A canonical, tolerance-robust invariant of the graph's topology: the number of simple
-turning points, the number of infinite rays, and the sorted saddle edges (turning
-points ordered canonically by position). Two graphs with the same signature have the
-same Stokes topology - this is the datum the cluster bridge will read.
+A canonical, tolerance-robust invariant of the graph's topology: the sorted
+[`turning_point_orders`](@ref), the number of infinite rays, and the sorted saddle
+edges (turning points ordered canonically by position). Two graphs with the same
+signature have the same Stokes topology - this is the datum the cluster bridge reads.
+The orders are carried so a degenerate graph is never silently equated with a generic
+one of the same turning-point count.
 """
 function topology_signature(g::StokesGraph)
-    (length(g.turning_points), n_infinite_lines(g), edges(g))
+    (turning_point_orders(g), n_infinite_lines(g), edges(g))
 end

@@ -112,7 +112,7 @@ mathieu_b(q, r; nmax = 24) = iseven(r) ? _mathieu_b_even(q, nmax)[r ÷ 2] :
         # Oracle 1 (fully independent of PF): the operator-form electric correction
         # equals the direct Dunham-S₂ quadrature on the electric cycle.
         for u in (5.0, 12.0, 40.0, 150.0)
-            op   = real(ExactWKB._electric_a2(sw, u, F))
+            op   = real(ExactWKB._electric_ns(sw, u, 1, F))
             quad = ExactWKB._electric_a2_quad(sw, u, F)
             @test isapprox(op, quad; rtol = 1e-7)
         end
@@ -130,8 +130,8 @@ mathieu_b(q, r; nmax = 24) = iseven(r) ? _mathieu_b_even(q, nmax)[r ÷ 2] :
         for u in (7.0, 0.5 + 0.0im, -3.0 + 2.0im, 6.0 + 4.0im)
             ap(v)  = ExactWKB._da_du_closed(sw, v, F)
             aDp(v) = ExactWKB._daD_du_closed(sw, v, F)
-            @test isapprox(d3(ap, u, 1e-3), ExactWKB._electric_a2(sw, u, F); rtol = 1e-4)
-            @test isapprox(d3(aDp, u, 1e-3), ExactWKB._magnetic_aD2(sw, u, F); rtol = 1e-4)
+            @test isapprox(d3(ap, u, 1e-3), ExactWKB._electric_ns(sw, u, 1, F); rtol = 1e-4)
+            @test isapprox(d3(aDp, u, 1e-3), ExactWKB._magnetic_ns(sw, u, 1, F); rtol = 1e-4)
         end
 
         # magnetic quantum period is now returned (3-term ħ-series) on the whole u-plane
@@ -140,13 +140,13 @@ mathieu_b(q, r; nmax = 24) = iseven(r) ? _mathieu_b_even(q, nmax)[r ÷ 2] :
             @test length(Resurgence.coefficients(p.a_D)) == 3
             aD2 = Resurgence.coefficients(p.a_D)[3]
             @test isfinite(abs(aD2)) && abs(aD2) > 0
-            @test aD2 ≈ complex(ExactWKB._magnetic_aD2(sw, u, Float64))
+            @test aD2 ≈ complex(ExactWKB._magnetic_ns(sw, u, 1, Float64))
         end
 
         # reality/branch consistency: on real u > 2Λ² the magnetic period is imaginary,
         # so its ħ² correction is imaginary too (Re ≈ 0)
         for u in (5.0, 30.0)
-            aD2 = ExactWKB._magnetic_aD2(sw, u, F)
+            aD2 = ExactWKB._magnetic_ns(sw, u, 1, F)
             @test isapprox(real(aD2), 0.0; atol = 1e-10)
         end
 
@@ -154,6 +154,144 @@ mathieu_b(q, r; nmax = 24) = iseven(r) ? _mathieu_b_even(q, nmax)[r ÷ 2] :
         p0 = quantum_sw_periods(sw, 9.0 + 2.0im; order = 0)
         @test length(Resurgence.coefficients(p0.a_D)) == 1
         @test Resurgence.coefficients(p0.a_D)[1] ≈ complex(sw_periods(sw, 9.0 + 2.0im).a_D)
+    end
+
+    # ── higher NS orders (rung 5): one first-order operator at every ħ order ──────────
+
+    @testset "NS operator machinery reproduces the pinned ħ² operator" begin
+        sw = SeibergWittenSU2()
+        F = Float64
+        Λ = 1.0
+        for u in (7.0, 0.5 + 0.0im, -3.0 + 2.0im, 6.0 + 4.0im)
+            A, B = ExactWKB._ns_period_operator(sw, u, 1, F)
+            # the hand-derived, rung-4-pinned operator a₂ = (1/6)Π′ − uΠ/(12(u²−4Λ⁴))
+            @test isapprox(A, -u / (12 * (u^2 - 4Λ^4)); rtol = 1e-12)
+            @test isapprox(B, 1 / 6; rtol = 1e-12)
+            # and the general path agrees with the shipped order-1 path on both cycles
+            Π = ExactWKB._electric_a_closed(sw, u, F)
+            dΠ = ExactWKB._da_du_closed(sw, u, F)
+            @test isapprox(A * Π + B * dΠ, ExactWKB._electric_ns(sw, u, 1, F); rtol = 1e-12)
+            ΠD = ExactWKB._magnetic_aD_closed(sw, u, F)
+            dΠD = ExactWKB._daD_du_closed(sw, u, F)
+            @test isapprox(A * ΠD + B * dΠD, ExactWKB._magnetic_ns(sw, u, 1, F); rtol = 1e-12)
+        end
+    end
+
+    @testset "ħ⁴/ħ⁶ corrections vs the pointwise Riccati quadrature" begin
+        sw = SeibergWittenSU2()
+        F = Float64
+        # the pointwise Taylor-jet evaluator reproduces the already-pinned ħ² quadrature
+        for u in (5.0, 40.0)
+            @test isapprox(ExactWKB._electric_R_quad(sw, u, 1, F),
+                           ExactWKB._electric_a2_quad(sw, u, F); rtol = 1e-10)
+        end
+        # ... and then certifies the operator at ħ⁴ and ħ⁶. This quadrature runs the same
+        # Riccati recursion pointwise in x, touching none of the ring reductions, the
+        # power-to-derivative dictionary or Picard–Fuchs, so it is an independent oracle.
+        for m in (2, 3), u in (5.0, 12.0, 40.0, 150.0)
+            op = real(ExactWKB._electric_ns(sw, u, m, F))
+            @test isapprox(op, ExactWKB._electric_R_quad(sw, u, m, F); rtol = 1e-7)
+        end
+    end
+
+    @testset "Picard–Fuchs collapse ∂_uⁿΠ = α_nΠ + β_nΠ′ (all n, both cycles)" begin
+        sw = SeibergWittenSU2()
+        setprecision(BigFloat, 300) do
+            F = BigFloat
+            h = F(1) / F(10)^12
+            # high-precision central stencils for the (n−1)-th derivative of Π′
+            function fd(f, u, n)
+                n == 1 && return (f(u + h) - f(u - h)) / (2h)
+                n == 2 && return (f(u + h) - 2f(u) + f(u - h)) / h^2
+                n == 3 && return (f(u + 2h) - 2f(u + h) + 2f(u - h) - f(u - 2h)) / (2h^3)
+                n == 4 && return (f(u + 2h) - 4f(u + h) + 6f(u) - 4f(u - h) + f(u - 2h)) / h^4
+                (f(u + 3h) - 4f(u + 2h) + 5f(u + h) - 5f(u - h) + 4f(u - 2h) - f(u - 3h)) / (2h^5)
+            end
+            for u in (F(7), F(3) + F(2) * im, F(-3) + F(2) * im)
+                α, β = ExactWKB._pf_collapse(sw, u, 6, F)
+                for (Πf, dΠf) in ((v -> ExactWKB._electric_a_closed(sw, v, F),
+                                   v -> ExactWKB._da_du_closed(sw, v, F)),
+                                  (v -> ExactWKB._magnetic_aD_closed(sw, v, F),
+                                   v -> ExactWKB._daD_du_closed(sw, v, F)))
+                    Π, dΠ = Πf(u), dΠf(u)
+                    for n in 2:6
+                        pred = α[n + 1] * Π + β[n + 1] * dΠ
+                        ref = fd(dΠf, u, n - 1)
+                        @test abs(pred - ref) / abs(ref) < 1e-20
+                    end
+                end
+            end
+        end
+    end
+
+    @testset "Mathieu band edges pin the ħ⁴ correction (external oracle)" begin
+        # ħ²ψ″ = (2Λ²cos 2x − u)ψ is Mathieu's equation with a = u/ħ², q = Λ²/ħ², and the
+        # NS quantization condition is a(u,ħ) = ħ·ν with band edges at integer ν = r.
+        # Both a_r(q) and b_r(q) sit at ν = r, so the perturbative series predicts the
+        # midpoint of that pair - their splitting is the nonperturbative band width and is
+        # the error floor. Adding each ħ order must shrink the residual well inside it.
+        sw = SeibergWittenSU2()
+        F = Float64
+        aq(u, ħ, m) = real(ExactWKB._electric_a_closed(sw, u, F) +
+                           sum(ExactWKB._electric_ns(sw, u, k, F) * ħ^(2k) for k in 1:m))
+        function solve_u(ħ, r, m)          # Newton on a(u,ħ) = ħr
+            u = (ħ * r)^2 + 1.0
+            for _ in 1:60
+                f = aq(u, ħ, m) - ħ * r
+                h = 1e-6 * max(1.0, abs(u))
+                un = u - f * 2h / (aq(u + h, ħ, m) - aq(u - h, ħ, m))
+                abs(un - u) < 1e-13 * max(1.0, abs(u)) && (u = un; break)
+                u = un
+            end
+            u
+        end
+        # weak-coupling window: u must sit clear of the singular locus u = 2Λ² = 2
+        for (ħ, r) in ((0.5, 5), (0.5, 6), (0.5, 7), (0.4, 6), (0.4, 7), (0.3, 7))
+            q = 1 / ħ^2
+            hi, lo = ħ^2 * mathieu_a(q, r; nmax = 60), ħ^2 * mathieu_b(q, r; nmax = 60)
+            mid = (hi + lo) / 2
+            u1, u2, u3 = solve_u(ħ, r, 1), solve_u(ħ, r, 2), solve_u(ħ, r, 3)
+            @test u2 > 2                                  # inside the weak-coupling region
+            @test lo < u2 < hi                            # inside the band gap
+            @test isapprox(u2, mid; rtol = 1e-5)
+            e1, e2, e3 = abs(u1 - mid), abs(u2 - mid), abs(u3 - mid)
+            @test e2 < e1 / 5                             # the ħ⁴ term earns its place
+            @test e3 < e2 / 3                             # and so does the ħ⁶ term
+        end
+    end
+
+    @testset "higher orders: series shape, branch consistency, whole u-plane" begin
+        sw = SeibergWittenSU2()
+        F = Float64
+        for order in (2, 3)
+            p = quantum_sw_periods(sw, 25.0; order = order)
+            ca = Resurgence.coefficients(p.a)
+            @test length(ca) == 2order + 1
+            @test all(iszero, ca[2:2:end])                # only even powers of ħ
+            @test all(!iszero, ca[1:2:end])
+        end
+        # whole u-plane, including the strong chamber and complex u
+        for u in (25.0, 3.0 + 0.0im, -2.0 + 3.0im, 5.0im, -3.0 + 0.5im)
+            p = quantum_sw_periods(sw, u; order = 2)
+            for c in (Resurgence.coefficients(p.a)[5], Resurgence.coefficients(p.a_D)[5])
+                @test isfinite(abs(c)) && abs(c) > 0
+            end
+        end
+        # on real u > 2Λ² the magnetic period is imaginary, so every correction is too
+        for u in (5.0, 30.0)
+            @test isapprox(real(ExactWKB._magnetic_ns(sw, u, 2, F)), 0.0; atol = 1e-12)
+        end
+        # central_charge carries every order, consistently with the series
+        u, ħ = 12.0, 0.2
+        p = quantum_sw_periods(sw, u; order = 2)
+        ca, cd = Resurgence.coefficients(p.a), Resurgence.coefficients(p.a_D)
+        ev(c) = c[1] + c[3] * ħ^2 + c[5] * ħ^4
+        @test central_charge(sw, u, (1, 2); ħ = ħ, order = 2) ≈ ev(cd) + 2 * ev(ca)
+        # the ħ⁴ term is a genuine correction to the ħ² answer, and much smaller
+        z1 = central_charge(sw, u, (1, 2); ħ = ħ, order = 1)
+        z2 = central_charge(sw, u, (1, 2); ħ = ħ, order = 2)
+        @test z1 != z2
+        @test abs(z2 - z1) < abs(z1 - central_charge(sw, u, (1, 2); ħ = ħ, order = 0)) / 10
     end
 
     @testset "central charge & monodromy" begin
@@ -309,10 +447,13 @@ mathieu_b(q, r; nmax = 24) = iseven(r) ? _mathieu_b_even(q, nmax)[r ÷ 2] :
     @testset "errors" begin
         sw = SeibergWittenSU2()
         @test_throws PeriodError sw_periods(sw, -2.0)         # dyon branch point
-        @test_throws PeriodError quantum_sw_periods(sw, 25.0; order = 2)
+        @test_throws PeriodError quantum_sw_periods(sw, 25.0; order = -1)
         @test_throws PeriodError quantum_sw_periods(sw, 2.0; order = 1)   # u = +2Λ² pinch
         @test_throws PeriodError quantum_sw_periods(sw, -2.0; order = 1)  # u = −2Λ² pinch
+        @test_throws PeriodError quantum_sw_periods(sw, 2.0; order = 3)   # pinch at any order
         @test_throws PeriodError central_charge(sw, 2.0, (1, 0); ħ = 0.1, order = 1)
+        @test_throws PeriodError central_charge(sw, 25.0, (1, 0); order = -1)
+        @test_throws PeriodError ExactWKB._ns_period_operator(sw, 25.0, 0, Float64)
         @test_throws PeriodError sw_monodromy(sw, :bogus)
         @test_throws PeriodError continue_periods(sw, [3.0, 2.0])  # through the singularity
         @test_throws Resurgence.InvalidArgument continue_periods(sw, Float64[])

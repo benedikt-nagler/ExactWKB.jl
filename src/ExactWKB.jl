@@ -17,6 +17,7 @@ plain numbers and `Resurgence.FormalSeries`.
 module ExactWKB
 
 using PrecompileTools: @setup_workload, @compile_workload
+import LinearAlgebra
 
 # Foundation packages. Resurgence supplies FormalSeries + the summation toolbox;
 # ClusterAlgebras supplies the y-mutation / seed machinery of the DDP layer.
@@ -30,13 +31,16 @@ export SpectralCycle, spectral_cycles, quantum_period, kind, endpoints
 export quantization_condition, spectral_determinant, wkb_eigenvalue
 export perturbative_b, instanton_a, verify_zjj, energy_splitting
 export SchrodingerProblem, q_coefficients, energy, degree, variable, with_energy,
-       q_derivative_at
+       q_derivative_at, q_taylor_at
 export TurningPoint, turning_points, simple_turning_points, location, order, is_simple
 export WKBExpansion, wkb_expansion, s_odd_terms, evaluate_s_odd, even_odd_residual
 export period_integral, wkb_period, encircling_contour
 export VorosSymbol, voros_symbol, classical_period, quantum_series, full_series
+export WeberModel, weber_model, weber_problem, weber_index, merging_period,
+       weber_voros_series, weber_voros_coefficient, weber_log_gamma, weber_connection
 export StokesLine, StokesGraph, stokes_graph, is_finite_line
-export finite_lines, edges, n_infinite_lines, topology_signature
+export finite_lines, edges, n_infinite_lines, topology_signature,
+       is_degenerate, turning_point_orders
 export mass, endpoint
 export Saddle, saddle_candidates, saddles, is_saddle, stokes_graph_family, central_charge
 export voros_value, ddp_transform, verify_ddp, verify_ddp_mutation, ddp_seed,
@@ -49,7 +53,15 @@ export ChargeBasis, charge_basis, charge_contour, bridge_seed, n_charges,
 export signed_frame, verify_signed_frame, chamber_walls, reference_theta
 export BPSState, BPSSpectrum, bps_spectrum, n_states, charges, charge, phase
 export TBASystem, TBASolution, tba_system, solve_tba, n_iterations, residual
-export SeibergWittenSU2, sw_periods, quantum_sw_periods, sw_singularities,
+export GMNTorus, GMNSolution, gmn_torus, solve_gmn, xi_value, semiflat_xi,
+       su2_pairing, radius, torus_angles, charge_central_charge
+export MetricPoint, metric_point, holomorphic_symplectic_form, symplectic_expansion,
+       hk_metric, hk_diagnostics, semiflat_metric, su2_torus
+export instanton_correction
+export ooguri_vafa_xi, ooguri_vafa_instantons, ooguri_vafa_torus,
+       ooguri_vafa_period_derivatives
+export SeibergWittenSU2, sw_periods, sw_period_derivatives, quantum_sw_periods,
+       sw_singularities,
        sw_monodromy, dynamical_scale, continue_periods, ms_wall, sw_chamber
 export su2_bps_quiver, su2_bps_states, verify_su2_wall_crossing
 export plot_stokes_graph, plot_triangulation
@@ -60,6 +72,7 @@ include("turning_points.jl")
 include("wkb_recursion.jl")
 include("periods.jl")
 include("voros.jl")
+include("weber.jl")
 include("quantum_periods.jl")
 include("stokes_graph.jl")
 include("saddles.jl")
@@ -73,6 +86,7 @@ include("bps.jl")
 include("tba.jl")
 include("sw_curve.jl")
 include("sw_bps.jl")
+include("hyperkahler.jl")
 include("show.jl")
 
 """

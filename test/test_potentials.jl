@@ -1,4 +1,22 @@
 @testset "potentials" begin
+    @testset "q_taylor_at: exact Taylor shift" begin
+        # Q = (z−1)²(z+2) = z³ − 3z + 2, expanded about z₀
+        p = SchrodingerProblem([2, -3, 0, 1])
+        @test q_taylor_at(p, 0) == [2, -3, 0, 1]                  # already at 0
+        @test q_taylor_at(p, 1) == [0, 0, 3, 1]                   # double zero at 1
+        @test q_taylor_at(p, -2) == [0, 9, -6, 1]                 # simple zero at −2
+        @test eltype(q_taylor_at(p, 1 // 2)) <: Rational          # stays exact
+        # t[1] = Q(z₀), t[2] = Q′(z₀) reproduce the existing accessors
+        for z in (0.3, -1.7, 2.0)
+            t = q_taylor_at(p, z)
+            @test t[1] ≈ p(z)
+            @test t[2] ≈ q_derivative_at(p, z)
+        end
+        # length is degree + 1, and the top coefficient is z₀-independent
+        @test length(q_taylor_at(p, 5)) == degree(p) + 1
+        @test q_taylor_at(p, 5)[end] == last(q_coefficients(p))
+    end
+
     @testset "construction & Q = V − E" begin
         airy = SchrodingerProblem([0, 1])                 # Q = z
         @test q_coefficients(airy) == [0, 1]

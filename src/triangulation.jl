@@ -121,6 +121,20 @@ function ideal_triangulation(g::StokesGraph{F}) where {F}
     n = length(g.turning_points)
     lines = g.lines
 
+    # 0. degeneracy gate. The face walk below is hard-wired to trivalent turning points
+    # (3n darts, `mod1(k,3)`, `NTuple{3,Int}`): an order-m point is dual to an
+    # (m+2)-gon, so the dual is a *partial* triangulation - a positive-dimensional face
+    # of the associahedron, with several triangulations refining it. Refuse it here
+    # rather than failing deep inside the walk.
+    if is_degenerate(g)
+        # NB: `order` is shadowed by a local array further down - use the field.
+        bad = findfirst(!is_simple, g.turning_points)::Int
+        throw(NonGenericGraph(
+            "turning point $bad has order $(g.turning_points[bad].order): a degenerate " *
+            "Stokes graph is dual to a polygon decomposition, not a triangulation - " *
+            "perturb the energy off the critical value"))
+    end
+
     # 1. genericity gate: all 3n rays must escape.
     for l in lines
         if l.endpoint === :turning_point
