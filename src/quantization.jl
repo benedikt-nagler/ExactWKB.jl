@@ -38,6 +38,38 @@
 #    D = 1 + V_B; double well D = cos²φ − ¼·V_A/(1+V_A) = ∏_± D_±, the parity
 #    factors D_± = cos φ ∓ ½√(V_A/(1+V_A)). Zeros ⟺ eigenvalues; no Hadamard/ζ
 #    regularization (deliberately out of the spectral layer's scope).
+# 5. UNIFORM (Weber) condition, `uniform = true`. Item 3's ½ is the AIRY connection
+#    constant, so it is the deep-barrier form: it has no continuation past the barrier
+#    top, where the barrier's two turning points merge and the connection becomes the
+#    parabolic-cylinder (Weber) one. Written as a phase condition on the SAME two
+#    all-orders quantities - `φ = −Im log V_B/2` on the continued well cycle and the
+#    barrier index `ε` of `uniform_cycles` - the uniform condition is
+#        2φ + p·arctan(e^{−πε}) = π(2n + 1),   p = parity (+1 even, −1 odd).
+#    It comes from the exact parabolic-barrier amplitudes: `|T| = (1+e^{2πε})^{−1/2}`
+#    and `|T|/|R| = e^{−πε}` ([`weber_barrier_amplitude`](@ref) computes `|T|` from the
+#    package's own resurgent Γ), with the round trip e^{2iφ}·e^{−iπ/2}·r_p = 1 and the
+#    parity channel r_p = e^{G}(p e^{−πε} − i), `G` the Weber Voros coefficient. The
+#    real part of that complex equation cancels IDENTICALLY on both sides of the top -
+#    `Re G = −½log(1 + e^{−2π|ε|})` against the modulus of `(p e^{−πε} − i)`, the
+#    branch of `log ν` flipping at ε = 0 (weber ledger item 6) - which is why the
+#    residual is real above the top as well as below. Two limits pin it:
+#      * ε → +∞: arctan(e^{−πε}) → e^{−πε} = √V_A, i.e. cos φ = σ√V_A/2, item 3 at
+#        one instanton. The two differ at O(V_A^{3/2}) - two instantons - where item 3
+#        is the exact (DDP) one and this is the parabolic model's.
+#      * ε → −∞: arctan → π/2, giving 2φ = π(2n + 1 − p/2), i.e. the single-well
+#        Bohr-Sommerfeld spectrum with the even levels at N = 2n and the odd at
+#        N = 2n + 1 - the interleaving of a symmetric well with no barrier left.
+#    PINNED end to end by dense diagonalization at ħ = 0.25 for the quartic double
+#    well, on levels both below the barrier top (where it reproduces item 3) and above
+#    it (where item 3 does not exist).
+#    NOT uniform in the last window: `φ` is a period of the cycle PINCHED by the
+#    vanishing one, so its ħ-series diverges near the top and no truncation order
+#    rescues it (measured for V = (z²−1)² at ħ = 0.25: fine at |E − E_top| = 1e-2,
+#    `v_8 ≈ 1e19` at 1e-3, at every order). `ε` - the VANISHING cycle's own index - is
+#    finite and order-stable in the same place, to 5%: a measured asymmetry, not an
+#    assumption, and the reason the refusal names the well cycle. That window throws
+#    `QuantizationError`; resumming it is a summation problem, not a
+#    connection-formula one.
 
 # ── internal: cycles + shared WKB expansion + summed multipliers at one energy ──
 
@@ -80,11 +112,51 @@ function _require_layout(cycles, parity, E)
     end
 end
 
+# ── the uniform (Weber) branch: ledger item 5 ───────────────────────────────────
+
+# arctan(e^{−πε}), written so the over-barrier side (ε ≪ 0) cannot overflow.
+_barrier_phase(ε::Real) =
+    ε ≥ 0 ? atan(exp(-oftype(ε, π) * ε)) :
+            oftype(ε, π) / 2 - atan(exp(oftype(ε, π) * ε))
+
+# (φ, ε) at one energy, on the cycles continued through the barrier top.
+function _uniform_data(prob::SchrodingerProblem, E, ħ; order, side, pade_order, tilt,
+                       rtol, quad_rtol)
+    cyc = uniform_cycles(prob, E)
+    w = wkb_expansion(with_energy(prob, E); order)
+    sym(c) = try
+        voros_symbol(w, c.contour; rtol = quad_rtol)
+    catch e
+        e isa Resurgence.InvalidArgument || rethrow()
+        # the pinched-cycle divergence of ledger item 5 - name it rather than let the
+        # generic even-period guard surface
+        throw(QuantizationError(
+            "the quantum period of the well cycle diverges at E = $E: it is pinched " *
+            "by the vanishing cycle, so its ħ-series is useless for |E − E_top| ≲ ħ " *
+            "(barrier index ε ≈ 0). Lower ħ, or step the eigenvalue past this window"))
+    end
+    logVB = _log_voros(sym(cyc.well), ħ; theta = 0, side, order = pade_order, tilt, rtol)
+    logVA = _log_voros(sym(cyc.barrier), ħ; theta = 0, side, order = pade_order, tilt,
+                       rtol)
+    φ = -imag(logVB) / 2
+    ε = (cyc.below ? 1 : -1) * abs(real(logVA)) / (2 * oftype(φ, π))   # ledger item 3
+    (φ, ε)
+end
+
+function _uniform_condition(prob::SchrodingerProblem, E, ħ; n, parity, side, order,
+                            pade_order, tilt, rtol, quad_rtol)
+    parity in (-1, 1) || throw(Resurgence.InvalidArgument(
+        "the uniform condition is the parity-factorized one: parity must be +1 " *
+        "(even) or −1 (odd), got $parity"))
+    φ, ε = _uniform_data(prob, E, ħ; order, side, pade_order, tilt, rtol, quad_rtol)
+    2φ + parity * _barrier_phase(ε) - oftype(φ, π) * (2n + 1)
+end
+
 """
     quantization_condition(prob::SchrodingerProblem, E, ħ; n::Integer,
-                           parity = nothing, side = :median, order = 12,
-                           pade_order = nothing, tilt = 1//100, rtol = nothing,
-                           quad_rtol = nothing) -> Real
+                           parity = nothing, uniform = false, side = :median,
+                           order = 12, pade_order = nothing, tilt = 1//100,
+                           rtol = nothing, quad_rtol = nothing) -> Real
 
 The exact (Voros) quantization condition at energy `E`: a real residual whose zero
 in `E` is the eigenvalue. Two supported layouts (see the ledger above):
@@ -96,17 +168,29 @@ in `E` is the eigenvalue. Two supported layouts (see the ledger above):
   parity condition ``\\cos φ − σ\\sqrt{V_A/(1+V_A)}``, ``σ = parity·(−1)^n``
   (`+1` = even = lower member).
 
+With `uniform = true` (double well only) the Airy connection constant ``½`` is
+replaced by the parabolic-cylinder (Weber) one and the condition becomes the phase
+residual ``2φ + p\\arctan(e^{-πε}) − π(2n+1)``, `p = parity`, on the cycles
+[`uniform_cycles`](@ref) continues through the barrier top - so it is defined, and
+pinned against dense diagonalization, for levels **above** the barrier top, where the
+non-uniform condition has no classical layout to stand on. It throws
+[`QuantizationError`](@ref) in the window `|E − E_top| ≲ ħ`, where the well cycle is
+pinched by the vanishing one and its ħ-series diverges (ledger item 5).
+
 `side` picks the lateral/median summation (`:median` is canonical and mandatory on
 the double-well resonant ray); `order` is the WKB order; `pade_order`/`tilt`/`rtol`
 pass to the Borel–Padé summation; `quad_rtol` to the period quadratures. Precision
 follows `ħ` and the potential's float type.
 """
 function quantization_condition(prob::SchrodingerProblem, E, ħ; n::Integer,
-                                parity = nothing, side::Symbol = :median,
+                                parity = nothing, uniform::Bool = false,
+                                side::Symbol = :median,
                                 order::Integer = 12, pade_order = nothing,
                                 tilt::Real = 1 // 100, rtol = nothing,
                                 quad_rtol = nothing)
     n ≥ 0 || throw(Resurgence.InvalidArgument("the quantum number n must be ≥ 0, got $n"))
+    uniform && return _uniform_condition(prob, E, ħ; n, parity, side, order, pade_order,
+                                         tilt, rtol, quad_rtol)
     data = _condition_data(prob, E; order, quad_rtol)
     _require_layout(data.cycles, parity, E)
     wells = _wells(data.cycles)
@@ -239,10 +323,97 @@ function _seed_energy(prob::SchrodingerProblem, n, ħ, parity, ::Type{F}) where 
     (lo + hi) / 2
 end
 
+# The barrier top: the largest value of V at a real critical point that is a local
+# maximum (`NaN` when the potential has none - then there is no top to avoid).
+function _barrier_top(prob::SchrodingerProblem, ::Type{F}) where {F}
+    v = [F(c) for c in prob.v_coeffs]
+    dv = [k * v[k + 1] for k in 1:(length(v) - 1)]
+    length(dv) ≤ 1 && return F(NaN)
+    d2v = [k * dv[k + 1] for k in 1:(length(dv) - 1)]
+    crits = PolynomialRoots.roots(Complex{F}.(dv))
+    zs = [real(z) for z in crits if abs(imag(z)) ≤ sqrt(eps(F)) * (1 + abs(z))]
+    maxima = [_horner(v, z) for z in zs if _horner(d2v, z) < 0]
+    isempty(maxima) ? F(NaN) : maximum(maxima)
+end
+
+# Leading-order seed for the uniform route: the same phase condition with CLASSICAL
+# periods only (no WKB recursion, no Borel sum), which is monotone increasing in E and
+# - unlike `_seed_action` - defined on both sides of the barrier top.
+function _uniform_seed(prob::SchrodingerProblem, n, ħ, parity, ::Type{F}) where {F}
+    function f1(E)
+        cyc = try
+            uniform_cycles(prob, E)
+        catch e
+            (e isa QuantizationError || e isa CoalescentTurningPoints) &&
+                return F(NaN)
+            rethrow()
+        end
+        probE = with_energy(prob, E)
+        φ = -imag(period_integral(probE, cyc.well.contour; rtol = 1e-8)) / (2 * F(ħ))
+        ε = (cyc.below ? 1 : -1) *
+            abs(real(period_integral(probE, cyc.barrier.contour; rtol = 1e-8))) /
+            (2 * F(π) * F(ħ))
+        2φ + parity * _barrier_phase(ε) - F(π) * (2n + 1)
+    end
+    # `f` is continuous through the barrier top but its GEOMETRY is not: at E_top the
+    # inner pair has merged (three turning points, and a well cycle that would enclose
+    # a single branch point) and just off it the well contour has to squeeze through a
+    # gap that shrinks with the separation. So the seed simply does not sample a thin
+    # window around E_top; `f` is monotone, so clamping to the window's edges keeps
+    # every sign and only blurs the root by `w`, far inside the seed's own tolerance.
+    # Leaving a NaN there instead would make the bisection treat E_top as an upper
+    # bound and converge to it, hiding every level above the barrier.
+    Etop = _barrier_top(prob, F)
+    w = F(1 // 10)^4 * (1 + abs(Etop))
+    function f(E)
+        isnan(Etop) && return f1(E)
+        abs(E - Etop) ≥ w && return f1(E)
+        f1(E ≥ Etop ? Etop + w : Etop - w)
+    end
+    floor_E = _potential_floor(prob, F)
+    isfinite(floor_E) || throw(QuantizationError(
+        "cannot seed the eigenvalue: the potential has no real critical point"))
+    δ = F(ħ) * (1 + abs(floor_E))
+    lo, f_lo, tries = floor_E + δ, F(NaN), 0
+    while isnan(f_lo)
+        lo = floor_E + δ
+        f_lo = f(lo)
+        δ /= 8
+        (tries += 1) > 60 && throw(QuantizationError(
+            "cannot seed the uniform eigenvalue: no four-turning-point double-well " *
+            "layout above the potential floor $floor_E"))
+    end
+    f_lo ≥ 0 && return lo
+    hi, step = lo, max(δ, F(ħ))
+    while true
+        hi += step
+        f_hi = f(hi)
+        if isnan(f_hi)                          # stepped onto E_top itself
+            hi -= step
+            step /= 2
+            step ≤ eps(F) * (1 + abs(hi)) && throw(QuantizationError(
+                "cannot bracket the uniform eigenvalue above E = $hi"))
+            continue
+        end
+        f_hi ≥ 0 && break
+        step *= 2
+        hi > floor_E + F(10)^9 * (1 + abs(floor_E)) && throw(QuantizationError(
+            "seeding did not reach the uniform quantization phase for n = $n"))
+    end
+    for _ in 1:80
+        mid = (lo + hi) / 2
+        f_mid = f(mid)
+        isnan(f_mid) && (hi = mid; continue)
+        f_mid < 0 ? (lo = mid) : (hi = mid)
+        (hi - lo) ≤ F(1 // 1000) * (1 + abs(mid)) && break
+    end
+    (lo + hi) / 2
+end
+
 """
     wkb_eigenvalue(prob::SchrodingerProblem, n::Integer, ħ; parity = nothing,
-                   side = :median, order = 12, rtol = nothing, maxiter = 30,
-                   kwargs...) -> Real
+                   uniform = false, side = :median, order = 12, rtol = nothing,
+                   maxiter = 30, kwargs...) -> Real
 
 The `n`-th eigenvalue of ``−ħ²ψ″ + Vψ = Eψ`` from the exact quantization condition:
 Newton's method in `E` (finite-difference derivative) on
@@ -253,8 +424,14 @@ the doublet index. `rtol` is the relative tolerance on `E` (default `√eps` of 
 working float type - set it explicitly for BigFloat runs); remaining keywords pass
 to [`quantization_condition`](@ref). Throws [`QuantizationError`](@ref) on
 non-convergence.
+
+`uniform = true` switches to the Weber (parabolic-cylinder) condition and to a seed
+built from the same phase, so `n` counts doublets **through and above the barrier
+top**: level `2n` of the whole well for `parity = +1` and `2n + 1` for `parity = −1`
+once the barrier is submerged. The default route cannot reach those levels at all.
 """
 function wkb_eigenvalue(prob::SchrodingerProblem, n::Integer, ħ; parity = nothing,
+                        uniform::Bool = false,
                         side::Symbol = :median, order::Integer = 12,
                         rtol = nothing, maxiter::Integer = 30, pade_order = nothing,
                         tilt::Real = 1 // 100, sum_rtol = nothing, quad_rtol = nothing)
@@ -263,8 +440,9 @@ function wkb_eigenvalue(prob::SchrodingerProblem, n::Integer, ħ; parity = nothi
     ħF = F(real(ħ))
     tol = rtol === nothing ? sqrt(eps(F)) : F(rtol)
     floor_E = _potential_floor(prob, F)
-    E = _seed_energy(prob, n, ħF, parity, F)
-    cond(x) = quantization_condition(prob, x, ħF; n, parity, side, order,
+    E = uniform ? _uniform_seed(prob, n, ħF, parity, F) :
+                  _seed_energy(prob, n, ħF, parity, F)
+    cond(x) = quantization_condition(prob, x, ħF; n, parity, uniform, side, order,
                                      pade_order, tilt, rtol = sum_rtol, quad_rtol)
     scale(x) = 1 + abs(x)
     # a step must land strictly inside the supported layout: above the potential

@@ -27,7 +27,7 @@ import ClusterAlgebras
 export ExactWKBError, InvalidPotential, UnsupportedTurningPoint, ContourError,
        TracingFailed, NonGenericGraph, ChamberError, CoalescentTurningPoints,
        QuantizationError, TBAError, PeriodError
-export SpectralCycle, spectral_cycles, quantum_period, kind, endpoints
+export SpectralCycle, spectral_cycles, uniform_cycles, quantum_period, kind, endpoints
 export quantization_condition, spectral_determinant, wkb_eigenvalue
 export perturbative_b, instanton_a, verify_zjj, energy_splitting
 export AbstractSchrodingerProblem, SchrodingerProblem, q_coefficients, energy, degree,
@@ -40,7 +40,8 @@ export WKBExpansion, wkb_expansion, s_odd_terms, evaluate_s_odd, even_odd_residu
 export period_integral, wkb_period, encircling_contour
 export VorosSymbol, voros_symbol, classical_period, quantum_series, full_series
 export WeberModel, weber_model, weber_problem, weber_index, merging_period,
-       weber_voros_series, weber_voros_coefficient, weber_log_gamma, weber_connection
+       weber_voros_series, weber_voros_coefficient, weber_voros_sum, weber_log_gamma,
+       weber_connection, weber_barrier_amplitude
 export StokesLine, StokesGraph, stokes_graph, is_finite_line
 export finite_lines, edges, n_infinite_lines, topology_signature,
        is_degenerate, turning_point_orders

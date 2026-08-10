@@ -56,6 +56,20 @@
 #    is recorded rather than normalized away. `which = 2` (the turning point listed
 #    second, the one further along `+dir`) is the branch that reproduces
 #    `weber_voros_series` with a plus sign. PINNED by the two-sided test.
+# 6. Which branch of `log ν` in the elementary part. `weber_voros_sum` is defined as
+#    `log Γ(½+ν) − (ν log ν − ν + ½log 2π)` with the PRINCIPAL log, and `ν = 0` is the
+#    removable case `elementary(0) = ½log 2π`. This is not cosmetic: on the imaginary
+#    axis `ν = iε` the principal branch flips at `ε = 0`, and that flip is exactly what
+#    makes `Re` of the sum equal `−½log(1+e^{−2π|ε|})` on BOTH sides - the identity the
+#    uniform quantization condition of `quantization.jl` is built on. PINNED by the
+#    closed-form real-part test at ε of both signs.
+# 7. The imaginary axis needs the recurrence, not a different ray. The Borel
+#    singularities of the Stirling series sit at `2πik`, i.e. exactly along the Laplace
+#    ray `arg(1/ν) = ∓π/2` that `ν = iε` asks for. Rather than choose a lateral, we
+#    shift with `log Γ(½+ν) = log Γ(½+ν+k) − Σ_{j<k} log(½+ν+j)` until the ray is well
+#    inside a Borel-regular sector (`Re ν ≥ 8` and `|Im ν| ≤ Re ν`, so `|arg x| ≤ π/4`).
+#    The recurrence is exact, so this costs accuracy nowhere. PINNED by the functional
+#    equation and by `Γ(½) = √π` at `ν = 0`, which only the shift can reach.
 
 using Resurgence: FormalSeries, borel, pade, laplace_sum
 
@@ -304,31 +318,75 @@ end
 
 # -- the connection constant ----------------------------------------------------------
 
-"""
-    weber_log_gamma(ν; order = 9, pade_order = nothing, rtol = nothing) -> Complex
+# The elementary (non-resurgent) part of `log Γ(½+ν)`: `ν log ν − ν + ½log 2π`, with
+# the principal log and the removable value at ν = 0 (ledger item 6).
+function _weber_elementary(ν::Number)
+    T = Complex{typeof(float(real(ν)))}
+    iszero(ν) && return T(log(2 * T(π)) / 2)
+    T(ν * log(T(ν)) - ν + log(2 * T(π)) / 2)
+end
 
-``\\log Γ(½ + ν)``, computed **by resurgence**: the elementary part
-``ν \\log ν − ν + ½\\log(2π)`` plus the Borel-Padé-Laplace sum of
-[`weber_voros_series`](@ref) at ``x = 1/ν``. No external Gamma function is involved -
-this is the Weber Voros coefficient doing the work.
+# How far to walk the recurrence so `x = 1/ν` lands in a Borel-regular sector
+# (ledger item 7): `Re ν ≥ 8` and `|Im ν| ≤ Re ν`.
+function _weber_shift(ν::Number)
+    re, im = float(real(ν)), abs(float(imag(ν)))
+    max(0, ceil(Int, max(8 - re, im - re)))
+end
 
-Valid for `ν` away from the negative real axis (where the Borel singularities at
-``2πi k`` reach the Laplace ray and ``Γ`` has its poles); accuracy grows with `ν` and
-with `order`, as for any asymptotic expansion. `pade_order` truncates the Padé
-approximant (`reduce = true` is mandatory and applied - the series is odd-only).
 """
-function weber_log_gamma(ν::Number; order::Integer = 9, pade_order = nothing,
-                         rtol = nothing)
-    x = 1 / ν
-    T = Complex{typeof(float(real(x)))}
+    weber_voros_sum(ν; order = 9, shift = nothing, pade_order = nothing,
+                    rtol = nothing) -> Complex
+
+The **Borel sum** of the Weber Voros coefficient at `ν` - i.e.
+``\\log Γ(½ + ν) − (ν \\log ν − ν + ½\\log 2π)``, the resurgent remainder that
+[`weber_voros_series`](@ref) is the asymptotic expansion of. Computed by
+Borel-Padé-Laplace on that series at ``x = 1/ν``; no external Gamma function is
+involved.
+
+`ν` may sit anywhere off the negative real axis, **including on the imaginary axis**,
+where the Borel singularities at ``2πi k`` lie exactly on the Laplace ray: the exact
+recurrence ``\\log Γ(½+ν) = \\log Γ(½+ν+k) − Σ_{j<k} \\log(½+ν+j)`` walks `ν` into a
+regular sector first (`shift` overrides the automatic `k`). A purely imaginary
+``ν = iε`` is the barrier of index `ε` (see [`weber_barrier_amplitude`](@ref)), and
+there the real part is the elementary ``−½\\log(1 + e^{−2π|ε|})``.
+"""
+function weber_voros_sum(ν::Number; order::Integer = 9, shift = nothing,
+                         pade_order = nothing, rtol = nothing)
+    T = Complex{typeof(float(real(ν)))}
+    k = shift === nothing ? _weber_shift(ν) : Int(shift)
+    k ≥ 0 || throw(Resurgence.InvalidArgument("shift must be ≥ 0, got $k"))
+    νs = T(ν) + k
+    x = 1 / νs
     S = weber_voros_series(; order)
     Sf = FormalSeries(T[T(c) for c in Resurgence.coefficients(S)], :x;
                       power_offset = 1 // 1)
     B = borel(Sf)
     r = pade(B; order = pade_order, reduce = true)
-    tail = laplace_sum(B, r, x; θ = angle(x), rtol)
-    T(ν * log(ν) - ν + log(2 * T(π)) / 2 + tail)
+    G = laplace_sum(B, r, x; θ = angle(x), rtol)
+    # undo the shift: log Γ(½+ν) = log Γ(½+ν+k) − Σ log(½+ν+j), then strip the
+    # elementary part at the ORIGINAL ν (ledger items 6, 7)
+    for j in 0:(k - 1)
+        G -= log(T(ν) + T(1 // 2) + j)
+    end
+    T(G + _weber_elementary(νs) - _weber_elementary(ν))
 end
+
+"""
+    weber_log_gamma(ν; order = 9, shift = nothing, pade_order = nothing,
+                    rtol = nothing) -> Complex
+
+``\\log Γ(½ + ν)``, computed **by resurgence**: the elementary part
+``ν \\log ν − ν + ½\\log(2π)`` plus [`weber_voros_sum`](@ref), the Borel-Padé-Laplace
+sum of [`weber_voros_series`](@ref) at ``x = 1/ν``. No external Gamma function is
+involved - this is the Weber Voros coefficient doing the work.
+
+Valid for `ν` away from the negative real axis (where ``Γ`` has its poles); small and
+imaginary `ν` are reached through the exact recurrence, so `ν = 0` gives
+``\\log Γ(½) = ½\\log π``. `pade_order` truncates the Padé approximant
+(`reduce = true` is mandatory and applied - the series is odd-only).
+"""
+weber_log_gamma(ν::Number; kwargs...) =
+    _weber_elementary(ν) + weber_voros_sum(ν; kwargs...)
 
 """
     weber_connection(ν; kwargs...) -> Complex
@@ -340,3 +398,23 @@ computes ``Γ`` by Borel summation of the Voros coefficient. `kwargs` pass throu
 """
 weber_connection(ν::Number; kwargs...) =
     sqrt(2 * oftype(float(real(ν)), π)) * exp(-weber_log_gamma(ν; kwargs...))
+
+"""
+    weber_barrier_amplitude(ε; kwargs...) -> Real
+
+The transmission amplitude ``|T|`` of a parabolic barrier of index `ε`, computed **by
+resurgence** from [`weber_connection`](@ref) at ``ν = iε``:
+
+``|T| = e^{-πε/2}\\,/\\,|\\sqrt{2π}/Γ(½+iε)| = (1 + e^{2πε})^{-1/2}``,
+
+the closed form on the right being the oracle. `ε > 0` is a barrier the particle
+tunnels through (``|T| ≈ e^{-πε}``, the one-instanton weight); `ε = 0` is the barrier
+top (``|T| = 1/\\sqrt2``); `ε < 0` is over-barrier (``|T| → 1``). This is the
+connection constant a *merging pair* of turning points contributes where a single
+simple turning point contributes the Airy ``½`` - the content of the uniform
+quantization condition of [`quantization_condition`](@ref).
+"""
+function weber_barrier_amplitude(ε::Real; kwargs...)
+    F = typeof(float(ε))
+    exp(-F(π) * ε / 2) / abs(weber_connection(complex(zero(F), F(ε)); kwargs...))
+end

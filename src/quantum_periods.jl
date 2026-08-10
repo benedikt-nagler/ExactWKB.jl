@@ -146,6 +146,124 @@ function spectral_cycles(prob::SchrodingerProblem, E; margin = nothing,
     cycles
 end
 
+# ── the same two cycles, continued through the barrier top ──────────────────────
+#
+# `spectral_cycles` reads the classical regions off the real axis, so it stops existing
+# where they do: at the barrier top the two inner turning points merge and above it they
+# leave the real axis, taking the barrier cycle's classical *meaning* with them. The
+# cycles themselves are unbothered - they are cycles on `w² = Q`, and `E` moves their
+# branch points around without destroying them. `uniform_cycles` builds that
+# continuation, which is what the uniform quantization condition needs.
+#
+# ── Continuation ledger (pinned in test_quantization.jl) ────────────────────────
+#
+# 1. WHICH INNER TURNING POINT the well cycle runs to. Below the top it is the one
+#    adjacent to the left outer turning point (`b` in `a < b < c < d`). Above the top
+#    the pair has become `∓iδ`, and the continuation is the one with POSITIVE imaginary
+#    part: only that choice gives `φ = Φ₀ − iπε/2` with `Φ₀ = (1/ħ)∫_a^0 √(E−V) > 0`,
+#    the real half-well phase. The other choice differs by the sign of `Re v₋₁` and
+#    would put the barrier term in with the wrong sign. PINNED by
+#    `−Im v₋₁/(2ħ) = ∫_a^0 √(E−V)/ħ` continuing smoothly across `E_top`.
+# 2. THE BARRIER MARGIN IS NOT CAPPED BY THE SEPARATION. `spectral_cycles` pads a cycle
+#    by `min(|b−a|/2, 0.45·d_other)`; here the first term is dropped for the inner pair,
+#    because it is exactly the term that shrinks to zero as the pair merges. The
+#    contour stays a fixed size while the cycle it carries vanishes - which is the whole
+#    point, since `v₋₁ → 0` continuously and only the contour would have degenerated.
+# 3. THE SIGN OF ε IS GEOMETRIC, NOT ANALYTIC. `ε = ∓|Re log V_A|/2π`, positive when the
+#    inner pair is real (a genuine barrier, `V_A = e^{−2S_I/ħ} < 1`) and negative when it
+#    is a conjugate pair (over-barrier). The principal `√Q` branch at a contour's first
+#    vertex flips when the pair rotates from real to imaginary, so reading the sign off
+#    the integral instead would flip it exactly at the top - the one place continuity
+#    matters. PINNED by `ε → 0` continuously from both sides.
+
+"""
+    uniform_cycles(prob::SchrodingerProblem, E; margin = nothing, n = 32,
+                   real_tol = nothing) -> NamedTuple
+
+The well and vanishing cycles of a symmetric double well at energy `E`, **continued
+through the barrier top**: a named tuple `(well, barrier, below)` of two
+[`SpectralCycle`](@ref)s and the flag `below = E < E_top`.
+
+Below the barrier top these are the left well and the barrier of
+[`spectral_cycles`](@ref). Above it the inner turning points have left the real axis
+and neither classical region exists any more, but both cycles do: `well` runs from the
+left outer turning point to the inner one with positive imaginary part, and `barrier`
+encircles the (now conjugate) inner pair - the cycle that *vanishes* at the top. This
+is the input of the uniform quantization condition
+([`quantization_condition`](@ref) with `uniform = true`).
+
+Requires a four-turning-point symmetric double-well family, all turning points simple
+(so not the barrier top itself, nor the well bottom, where a pair has merged and the
+well cycle would enclose one branch point).
+"""
+function uniform_cycles(prob::SchrodingerProblem, E; margin = nothing, n::Integer = 32,
+                        real_tol = nothing)
+    _require_real_potential(prob, "uniform_cycles")
+    probE = with_energy(prob, E)
+    tps = turning_points(probE)
+    F = _wkb_float(probE)
+    # merged pairs first: at the barrier top (and at the well bottom) the count is
+    # short precisely BECAUSE a pair has merged, and that is the informative error
+    for tp in tps
+        is_simple(tp) || throw(CoalescentTurningPoints(E, location(tp), zero(F)))
+    end
+    length(tps) == 4 || throw(QuantizationError(
+        "uniform_cycles needs a four-turning-point double-well family, found " *
+        "$(length(tps)) turning points at E = $E"))
+    zs = [location(tp) for tp in tps]
+    scale = 1 + maximum(abs, zs)
+    rtol = real_tol === nothing ? sqrt(eps(F)) * scale : F(real_tol)
+    reals = [z for z in zs if abs(imag(z)) ≤ rtol]
+    length(reals) in (2, 4) || throw(QuantizationError(
+        "uniform_cycles found $(length(reals)) real turning points at E = $E; a " *
+        "symmetric double well has four below the barrier top and two above it"))
+    below = length(reals) == 4
+    sort!(reals; by = real)
+    a = Complex{F}(real(first(reals)))          # left outer turning point
+    d = Complex{F}(real(last(reals)))
+    inner = if below
+        [Complex{F}(real(z)) for z in reals[2:3]]
+    else
+        cs = [z for z in zs if abs(imag(z)) > rtol]
+        length(cs) == 2 || throw(QuantizationError(
+            "uniform_cycles: $(length(cs)) non-real turning points at E = $E, expected " *
+            "a conjugate pair"))
+        sort(cs; by = imag)
+    end
+    # ledger item 1: the inner turning point the well cycle runs to
+    b = below ? inner[1] : inner[2]
+    c = below ? inner[2] : inner[1]
+    # `a` and `b` are rebuilt (the real ones with their O(eps) imaginary noise stripped,
+    # as in `spectral_cycles`), so the other turning points are selected by distance,
+    # never by identity - the latter silently keeps `a` and `b` themselves and collapses
+    # the padding to zero.
+    ztol = sqrt(eps(F)) * scale
+    others = [z for z in zs if abs(z - a) > ztol && abs(z - b) > ztol]
+
+    padW = margin
+    if padW === nothing
+        dmin = minimum((_segment_distance(z, a, b) for z in others); init = F(Inf))
+        padW = min(abs(b - a) / 2, isfinite(dmin) ? F(9 // 20) * dmin : F(Inf))
+    end
+    ctW = encircling_contour(a, b; margin = padW, n)
+
+    # ledger item 2: no `|c − b|/2` cap - that is the term that would vanish with the
+    # cycle. The remaining cap is the distance from the OUTER turning points to the
+    # pair's segment, which is what keeps the ellipse (semi-major `|c−b|/2 + pad`) from
+    # swallowing them; measuring to the pair's midpoint instead is not enough, and
+    # silently encloses `a` and `d` at low energy, where the pair is wide.
+    padB = margin
+    if padB === nothing
+        padB = F(9 // 20) * min(_segment_distance(a, b, c), _segment_distance(d, b, c))
+    end
+    ctB = encircling_contour(inner[1], inner[2]; margin = padB, n)
+
+    (well = SpectralCycle{F}(:well, a, b, ctW),
+     barrier = SpectralCycle{F}(:barrier, Complex{F}(inner[1]), Complex{F}(inner[2]),
+                                ctB),
+     below = below)
+end
+
 """
     quantum_period(prob::SchrodingerProblem, cycle::SpectralCycle, E;
                    order = 12, arithmetic = :auto) -> VorosSymbol
