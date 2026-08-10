@@ -155,7 +155,7 @@ end
 # ── the pairing ────────────────────────────────────────────────────────────────────
 
 """
-    intersection_pairing(prob::SchrodingerProblem, c1, c2) -> Int
+    intersection_pairing(prob::AbstractSchrodingerProblem, c1, c2) -> Int
 
 The homological intersection number ``⟨γ_1, γ_2⟩`` of the canonical lifts of the two
 closed contours to the spectral double cover ``w² = Q(z)``: the signed count of
@@ -169,7 +169,7 @@ Throws [`ContourError`](@ref) for a non-transversal crossing (touching or nearly
 parallel segments, a crossing at a polygon vertex - re-mesh with a different `n` or
 `margin`) or a crossing too close to a turning point.
 """
-function intersection_pairing(prob::SchrodingerProblem, c1::AbstractVector,
+function intersection_pairing(prob::AbstractSchrodingerProblem, c1::AbstractVector,
                               c2::AbstractVector)
     F = promote_type(_contour_float(_as_complex.(c1)), _contour_float(_as_complex.(c2)))
     verts1 = Complex{F}[_as_complex(z) for z in c1]

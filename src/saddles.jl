@@ -71,14 +71,14 @@ function _saddle_path(prob, zi::Complex{F}, zj::Complex{F}, others;
 end
 
 """
-    saddle_candidates(prob::SchrodingerProblem) -> Vector{Saddle}
+    saddle_candidates(prob::AbstractSchrodingerProblem) -> Vector{Saddle}
 
 For every pair of simple turning points, the central charge `Z_ij = 2∫√Q` (computed
 from the open-path period, with a perpendicular detour when a third turning point
 grazes the straight path) and the critical phase `θ_c = arg Z_ij (mod π)`. These are
 *candidates* - [`saddles`](@ref) confirms which actually form a finite Stokes line.
 """
-function saddle_candidates(prob::SchrodingerProblem)
+function saddle_candidates(prob::AbstractSchrodingerProblem)
     tps = simple_turning_points(prob)
     F = isempty(tps) ? Float64 : real(typeof(float(location(first(tps)))))
     zs = [location(t) for t in tps]
@@ -107,7 +107,7 @@ function is_saddle(g::StokesGraph, pr::Tuple{Int,Int})
 end
 
 """
-    saddles(prob::SchrodingerProblem; verify = true, tol = 1e-8, kwargs...) -> Vector{Saddle}
+    saddles(prob::AbstractSchrodingerProblem; verify = true, tol = 1e-8, kwargs...) -> Vector{Saddle}
 
 The confirmed saddles of `prob`. Each [`saddle_candidates`](@ref) entry is re-checked by
 tracing the Stokes graph at its critical phase `θ_c` (nudged by `tol` to land on the
@@ -115,7 +115,7 @@ knife-edge cleanly) and keeping it only if the finite edge actually appears. Wit
 `verify = false` the raw candidates are returned. Extra `kwargs` pass through to
 [`stokes_graph`](@ref).
 """
-function saddles(prob::SchrodingerProblem; verify::Bool = true, tol = 1e-8, kwargs...)
+function saddles(prob::AbstractSchrodingerProblem; verify::Bool = true, tol = 1e-8, kwargs...)
     cands = saddle_candidates(prob)
     verify || return cands
     kept = eltype(cands)[]
@@ -129,12 +129,12 @@ end
 # -- θ-families --------------------------------------------------------------------
 
 """
-    stokes_graph_family(prob::SchrodingerProblem, thetas; kwargs...) -> Vector{StokesGraph}
+    stokes_graph_family(prob::AbstractSchrodingerProblem, thetas; kwargs...) -> Vector{StokesGraph}
 
 The Stokes graph traced at each phase in `thetas` - a slice through the wall-crossing
 as `θ` sweeps. Topology jumps (an edge appearing or vanishing) mark critical phases;
 `allow_incomplete = true` is set so a marginal ray never aborts the sweep.
 """
-function stokes_graph_family(prob::SchrodingerProblem, thetas; kwargs...)
+function stokes_graph_family(prob::AbstractSchrodingerProblem, thetas; kwargs...)
     [stokes_graph(prob; theta = θ, allow_incomplete = true, kwargs...) for θ in thetas]
 end

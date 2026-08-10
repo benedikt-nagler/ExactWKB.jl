@@ -10,6 +10,47 @@ function _horner(coeffs, z)
 end
 
 """
+    AbstractSchrodingerProblem
+
+Supertype of the one-dimensional problems ``ħ²ψ″ = Q(z)ψ`` the package traces:
+[`SchrodingerProblem`](@ref) (polynomial `Q`) and [`RationalProblem`](@ref)
+(rational `Q`, i.e. `Q` with poles). Everything the Stokes-geometry layer needs is
+reached through four methods - `prob(z)`, [`q_derivative_at`](@ref),
+[`q_taylor_at`](@ref) and [`turning_points`](@ref) - so a new potential class is one
+file, not a rewrite.
+"""
+abstract type AbstractSchrodingerProblem end
+
+# Taylor shift of a coefficient vector (ascending) to the point `z0`, by repeated
+# synthetic division. Exact whenever the coefficients and `z0` are.
+function _taylor_shift(q::AbstractVector, z0)
+    T = typeof(zero(eltype(q)) * zero(z0) + zero(eltype(q)))
+    a = T[T(c) for c in q]
+    out = T[]
+    while true
+        n = length(a)
+        if n == 1
+            push!(out, a[1])
+            break
+        end
+        b = Vector{T}(undef, n - 1)
+        b[n - 1] = a[n]
+        for i in (n - 1):-1:2
+            b[i - 1] = a[i] + z0 * b[i]
+        end
+        push!(out, a[1] + z0 * b[1])
+        a = b
+    end
+    out
+end
+
+# Derivative of a coefficient vector (ascending).
+function _poly_derivative(q::AbstractVector)
+    length(q) < 2 && return [zero(eltype(q))]
+    [k * q[k + 1] for k in 1:(length(q) - 1)]
+end
+
+"""
     SchrodingerProblem{T}
 
 A one-dimensional Schrödinger problem ``ħ²ψ″ = Q(z)ψ`` with ``Q(z) = V(z) − E``.
@@ -29,7 +70,7 @@ dwell  = SchrodingerProblem([3//4, 0, -2, 0, 1])          # Q = (z²−1)² − 
 airy(2.0)                                                 # Q(2) = 2.0
 ```
 """
-struct SchrodingerProblem{T}
+struct SchrodingerProblem{T} <: AbstractSchrodingerProblem
     v_coeffs::Vector{T}
     energy::T
     var::Symbol
@@ -114,8 +155,7 @@ Evaluate ``Q′(z)`` by Horner on the differentiated coefficient vector.
 function q_derivative_at(prob::SchrodingerProblem, z)
     q = q_coefficients(prob)
     length(q) < 2 && return zero(first(q)) * zero(z)
-    dq = [k * q[k + 1] for k in 1:(length(q) - 1)]
-    _horner(dq, z)
+    _horner(_poly_derivative(q), z)
 end
 
 """
@@ -130,26 +170,50 @@ coefficient type and `z0` are (`Rational`, `Integer`). This is how the leading
 coefficient ``c_m`` of a turning point of order `m` is read off - the datum that
 sets its Stokes-ray directions (see [`stokes_graph`](@ref)).
 """
-function q_taylor_at(prob::SchrodingerProblem, z0)
-    q = q_coefficients(prob)
-    T = typeof(zero(eltype(q)) * zero(z0) + zero(eltype(q)))
-    a = T[T(c) for c in q]
-    out = T[]
-    while true
-        n = length(a)
-        if n == 1
-            push!(out, a[1])
-            break
-        end
-        b = Vector{T}(undef, n - 1)
-        b[n - 1] = a[n]
-        for i in (n - 1):-1:2
-            b[i - 1] = a[i] + z0 * b[i]
-        end
-        push!(out, a[1] + z0 * b[1])
-        a = b
-    end
-    out
+q_taylor_at(prob::SchrodingerProblem, z0) = _taylor_shift(q_coefficients(prob), z0)
+
+# -- the generic interface the Stokes-geometry layer reads --------------------------
+#
+# `_turning_polynomial` - the polynomial whose roots are the turning points.
+# `_infinity_exponent` / `_infinity_coefficient` - `e` and `a` in `Q ~ a·z^e` as
+# `z → ∞`. Together they fix the asymptotic Stokes directions and the escape mass.
+# `n_finite_poles` is 0 for a polynomial problem; see `src/rational_potentials.jl`.
+
+_turning_polynomial(prob::SchrodingerProblem) = q_coefficients(prob)
+_infinity_exponent(prob::SchrodingerProblem) = degree(prob)
+_infinity_coefficient(prob::SchrodingerProblem) = last(q_coefficients(prob))
+n_finite_poles(prob::AbstractSchrodingerProblem) = 0
+
+"""
+    asymptotic_directions(prob, theta; pole = 0) -> Vector
+
+The directions in which Stokes lines run into a singularity of `Q` at phase `theta`.
+Locally `Q ~ c·ζ^e` (`ζ = z − p` at a finite pole `p`, `ζ = 1/z` inverted at
+infinity), and `Im[e^{−iθ}∫√Q] = 0` puts `|e + 2|` directions at
+
+    arg ζ = (2θ − arg c + 2πk)/(e + 2) ,   k = 0 … |e+2| − 1 .
+
+`pole = 0` selects infinity (`e = degree(prob)`, so a degree-`d` polynomial gets the
+familiar `d + 2` asymptotic directions); `pole = j ≥ 1` selects the `j`-th finite pole
+of a [`RationalProblem`](@ref), where `e = −m_j` and the count is `m_j − 2`. The
+returned angles are the *marked points* of the boundary circle at that singularity.
+
+A **double** pole gives `e + 2 = 0` and the empty vector: it is a puncture, carrying
+no marked points, and the trajectories spiral into it instead of approaching a
+direction (see [`ring_domain_walls`](@ref)).
+"""
+function asymptotic_directions(prob::AbstractSchrodingerProblem, theta; pole::Integer = 0)
+    e, c = pole == 0 ? (_infinity_exponent(prob), _infinity_coefficient(prob)) :
+                       (_pole_exponent(prob, pole), _pole_coefficient(prob, pole))
+    F = typeof(float(real(zero(c) + zero(theta))))
+    n = abs(e + 2)
+    # A double pole (e = −2) is a puncture: it carries no marked points at all, and
+    # the Stokes lines spiral in rather than approaching any direction. Returning
+    # nothing is the right answer, not an error - it is what makes the marked-point
+    # count `Σ|e+2|` one formula across irregular poles and punctures.
+    n ≥ 1 || return F[]
+    [mod((2F(theta) - angle(Complex{F}(c)) + 2 * F(π) * k) / (e + 2), 2 * F(π))
+     for k in 0:(n - 1)]
 end
 
 Base.:(==)(p::SchrodingerProblem, q::SchrodingerProblem) =

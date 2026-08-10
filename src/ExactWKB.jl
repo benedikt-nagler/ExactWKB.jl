@@ -30,8 +30,11 @@ export ExactWKBError, InvalidPotential, UnsupportedTurningPoint, ContourError,
 export SpectralCycle, spectral_cycles, quantum_period, kind, endpoints
 export quantization_condition, spectral_determinant, wkb_eigenvalue
 export perturbative_b, instanton_a, verify_zjj, energy_splitting
-export SchrodingerProblem, q_coefficients, energy, degree, variable, with_energy,
-       q_derivative_at, q_taylor_at
+export AbstractSchrodingerProblem, SchrodingerProblem, q_coefficients, energy, degree,
+       variable, with_energy, q_derivative_at, q_taylor_at, asymptotic_directions
+export RationalProblem, q_numerator, poles, pole_orders, n_finite_poles,
+       mathieu_problem, puncture_indices, n_punctures,
+       RingDomainWall, ring_domain_walls, pole_index
 export TurningPoint, turning_points, simple_turning_points, location, order, is_simple
 export WKBExpansion, wkb_expansion, s_odd_terms, evaluate_s_odd, even_odd_residual
 export period_integral, wkb_period, encircling_contour
@@ -68,6 +71,7 @@ export plot_stokes_graph, plot_triangulation
 
 include("errors.jl")
 include("potentials.jl")
+include("rational_potentials.jl")
 include("turning_points.jl")
 include("wkb_recursion.jl")
 include("periods.jl")

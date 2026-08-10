@@ -12,6 +12,7 @@ include("diagonalization.jl")   # test-side eigenvalue oracle (not package code)
     end
     include("test_errors.jl")
     include("test_potentials.jl")
+    include("test_rational_potentials.jl")
     include("test_turning_points.jl")
     include("test_wkb_recursion.jl")
     include("test_periods.jl")

@@ -10,7 +10,7 @@ import PolynomialRoots
 _wkb_float(::Type{T}) where {T<:AbstractFloat} = T
 _wkb_float(::Type{Complex{T}}) where {T} = _wkb_float(T)
 _wkb_float(::Type{<:Union{Integer,Rational}}) = BigFloat
-_wkb_float(prob::SchrodingerProblem) = _wkb_float(eltype(q_coefficients(prob)))
+_wkb_float(prob::AbstractSchrodingerProblem) = _wkb_float(eltype(_turning_polynomial(prob)))
 
 """
     TurningPoint{F}
@@ -48,7 +48,7 @@ Base.:(==)(s::TurningPoint, t::TurningPoint) = s.z == t.z && s.order == t.order
 
 # Newton polish of a root of the exact Q, starting from `z0`; bails out at a critical
 # point (multiple root, `Q′ ≈ 0`) where Newton no longer converges quadratically.
-function _polish_root(prob::SchrodingerProblem, z0::Complex{F}; iters = 50) where {F}
+function _polish_root(prob::AbstractSchrodingerProblem, z0::Complex{F}; iters = 50) where {F}
     z = z0
     for _ in 1:iters
         qz = prob(z)
@@ -83,9 +83,11 @@ function _cluster_roots(rts::Vector{Complex{F}}, tol) where {F}
 end
 
 """
-    turning_points(prob::SchrodingerProblem; cluster_tol = nothing) -> Vector{TurningPoint}
+    turning_points(prob::AbstractSchrodingerProblem; cluster_tol = nothing) -> Vector{TurningPoint}
 
-The turning points of `prob`: the zeros of ``Q = V − E``, with multiplicities. Roots
+The turning points of `prob`: the zeros of ``Q``, with multiplicities (for a
+[`RationalProblem`](@ref) the zeros of its numerator - a pole is a singularity, not a
+turning point). Roots
 are located with `PolynomialRoots.roots` in `Complex{F}` (`F` = the working float type
 of the coefficients - `BigFloat` for exact potentials, at the caller's
 `setprecision`), polished by Newton against the exact `Q`, then clustered to collapse
@@ -94,9 +96,9 @@ multiple roots. Sorted deterministically by `(real, imag)`.
 `cluster_tol` overrides the merge tolerance (default `8·eps(F)^{1/3}`, which separates
 `O(1)`-spaced roots while merging a multiple root's `eps^{1/2}`-split copies).
 """
-function turning_points(prob::SchrodingerProblem; cluster_tol = nothing)
+function turning_points(prob::AbstractSchrodingerProblem; cluster_tol = nothing)
     F = _wkb_float(prob)
-    q = q_coefficients(prob)
+    q = _turning_polynomial(prob)
     c = Complex{F}[Complex{F}(x) for x in q]
     rts = length(c) == 2 ? Complex{F}[-c[1] / c[2]] : PolynomialRoots.roots(c)
     polished = Complex{F}[_polish_root(prob, z) for z in rts]
@@ -112,5 +114,5 @@ end
 
 The simple turning points only (order 1).
 """
-simple_turning_points(prob::SchrodingerProblem; kwargs...) =
+simple_turning_points(prob::AbstractSchrodingerProblem; kwargs...) =
     filter(is_simple, turning_points(prob; kwargs...))

@@ -16,6 +16,21 @@ plain(x) = sprint((io, v) -> show(io, MIME"text/plain"(), v), x)
         @test occursin("E =", p)
     end
 
+    @testset "RationalProblem" begin
+        rp = mathieu_problem(1.0, 3.0)
+        @test occursin("RationalProblem", compact(rp))
+        @test occursin("1 finite pole", compact(rp))
+        p = plain(rp)
+        @test occursin("Q(z)", p)
+        @test occursin("order 3", p)
+        @test occursin("2 boundary circles", p)
+        @test occursin("2 marked points", p)
+        # a ray that ends at a pole says so
+        g = stokes_graph(rp; theta = 0.3)
+        lp = first(filter(l -> ExactWKB.endpoint(l) === :pole, ExactWKB.lines(g)))
+        @test occursin("pole 1", compact(lp))
+    end
+
     @testset "TurningPoint" begin
         tp = first(turning_points(dw))
         @test occursin("TurningPoint", compact(tp))

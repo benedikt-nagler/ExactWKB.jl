@@ -26,6 +26,41 @@ function Base.show(io::IO, ::MIME"text/plain", prob::SchrodingerProblem)
           "  Q(", v, ") = ", body, "\n  E = ", _disp(energy(prob)))
 end
 
+# -- RationalProblem ---------------------------------------------------------------
+
+function Base.show(io::IO, prob::RationalProblem)
+    print(io, "RationalProblem(Q ~ z^", degree(prob), " at ∞, ",
+          n_finite_poles(prob), " finite pole",
+          n_finite_poles(prob) == 1 ? "" : "s", ")")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", prob::RationalProblem)
+    v = variable(prob)
+    terms = String[]
+    for (k, c) in pairs(q_numerator(prob))
+        iszero(c) && continue
+        pw = k == 1 ? "" : k == 2 ? string(v) : "$v^$(k-1)"
+        push!(terms, isempty(pw) ? string(_disp(c)) : "$(_disp(c))*$pw")
+    end
+    num = isempty(terms) ? "0" : replace(join(terms, " + "), "+ -" => "- ")
+    den = join(["($v − $(_disp(p)))^$m"
+                for (p, m) in zip(poles(prob), pole_orders(prob))], " ")
+    print(io, "RationalProblem (ħ²ψ″ = Q ψ)\n",
+          "  Q(", v, ") = [", num, "] / ", isempty(den) ? "1" : den, "\n",
+          "  poles     : ")
+    if n_finite_poles(prob) == 0
+        print(io, "∞ only (order ", degree(prob) + 4, ")")
+    else
+        print(io, join(["$(_disp(p)) (order $m)"
+                        for (p, m) in zip(poles(prob), pole_orders(prob))], ", "),
+              ", ∞ (order ", degree(prob) + 4, ")")
+    end
+    print(io, "\n  surface   : ", n_finite_poles(prob) + 1, " boundary circle",
+          n_finite_poles(prob) == 0 ? "" : "s", ", ",
+          sum(m - 2 for m in pole_orders(prob); init = 0) + degree(prob) + 2,
+          " marked points")
+end
+
 # -- TurningPoint ------------------------------------------------------------------
 
 function Base.show(io::IO, tp::TurningPoint)
@@ -75,7 +110,8 @@ end
 
 function Base.show(io::IO, l::StokesLine)
     dest = l.endpoint === :turning_point ? "→ TP $(l.target)" :
-           l.endpoint === :infinity ? "→ ∞" : "→ incomplete"
+           l.endpoint === :infinity ? "→ ∞" :
+           l.endpoint === :pole ? "→ pole $(l.target)" : "→ incomplete"
     print(io, "StokesLine(TP ", l.source, ", ray ", l.direction, " ", dest,
           ", mass ", _disp(l.mass), ")")
 end
@@ -108,6 +144,21 @@ function Base.show(io::IO, ::MIME"text/plain", s::Saddle)
           "  central charge Z = ", _disp(s.central_charge), "\n",
           "  mass |Z|         = ", _disp(mass(s)), "\n",
           "  critical phase θ = ", _disp(s.theta), " (mod π)")
+end
+
+# -- RingDomainWall ------------------------------------------------------------------
+
+function Base.show(io::IO, w::RingDomainWall)
+    print(io, "RingDomainWall(pole ", w.pole, ", |Z| = ", _disp(mass(w)),
+          ", θ_c = ", _disp(w.theta), ")")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", w::RingDomainWall)
+    print(io, "RingDomainWall at the puncture (double pole ", w.pole, ")\n",
+          "  residue charge Z = ", _disp(w.central_charge), "  (= ∮√Q)\n",
+          "  mass |Z|         = ", _disp(mass(w)), "\n",
+          "  critical phase θ = ", _disp(w.theta), " (mod π): there the trajectories\n",
+          "                     close into a ring domain instead of spiralling in")
 end
 
 # -- IdealTriangulation --------------------------------------------------------------

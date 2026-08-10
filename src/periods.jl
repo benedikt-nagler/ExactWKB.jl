@@ -95,7 +95,7 @@ function _quad_order(::Type{F}) where {F<:AbstractFloat}
 end
 
 """
-    period_integral(prob::SchrodingerProblem, contour; closed = true) -> Complex
+    period_integral(prob::AbstractSchrodingerProblem, contour; closed = true) -> Complex
 
 The classical period ``∮ √Q\\,dz`` (``= v_{-1}``) along the piecewise-linear
 `contour` (a vector of complex vertices). With `closed = true` the contour is closed
@@ -104,7 +104,7 @@ a turning point, or a contour enclosing an odd number of turning points (so `√
 not single-valued), throws [`ContourError`](@ref). Precision follows the contour's
 float type.
 """
-function period_integral(prob::SchrodingerProblem, contour::AbstractVector;
+function period_integral(prob::AbstractSchrodingerProblem, contour::AbstractVector;
                          closed::Bool = true, rtol = nothing, maxevals::Integer = 10^6)
     F = _contour_float(_as_complex.(contour))
     verts = Complex{F}[_as_complex(z) for z in contour]
