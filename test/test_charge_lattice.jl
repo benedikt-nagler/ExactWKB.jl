@@ -108,6 +108,61 @@ import ClusterAlgebras
         end
     end
 
+    @testset "the graph route agrees with the ellipse route on a disk" begin
+        # `charge_basis(prob, g)` builds each cycle from its strip region instead of
+        # an ellipse around a turning-point pair. On a disk the pair already names the
+        # cycle, so the two routes must land on the same lattice: the same central
+        # charges, and the same pairing and orientation signs *exactly*. The Z
+        # tolerance is the price of the strip route - its core path runs out to a
+        # marked point and back, so the two legs partly cancel.
+        # θ = the midpoint of each fixture's widest wall-free gap (see
+        # test_triangulation.jl; hard-coded here so this file stands alone)
+        for (name, prob, θ) in (("cubic", cubic, 0.785),
+                                ("quartic",
+                                 SchrodingerProblem([0.75, 0.0, -2.0, 0.0, 1.0]), 0.893),
+                                ("quintic",
+                                 SchrodingerProblem([-0.5, -1.0, 0.0, 0.0, 0.0, 1.0]),
+                                 0.542))
+            g = stokes_graph(prob; theta = θ)
+            t = ideal_triangulation(g)
+            ce = charge_basis(prob, t)
+            cg = charge_basis(prob, g)
+            @test cg.triangulation.diagonal_tp_pair == t.diagonal_tp_pair
+            @test n_charges(cg) == n_charges(ce)
+            @test cg.pairing == ce.pairing
+            @test signs(cg) == signs(ce)
+            @test physical_charges(cg) ≈ physical_charges(ce) rtol = 1e-9
+            # the keystone holds on both routes
+            @test signed_pairing(cg) == -triangulation_quiver(t).B
+        end
+    end
+
+    @testset "core paths and racetracks" begin
+        g = stokes_graph(cubic; theta = 0.3)
+        paths = diagonal_core_paths(g)
+        @test length(paths) == n_diagonals(tc)
+        tps = simple_turning_points(cubic)
+        for (e, path) in enumerate(paths)
+            i, j = tc.diagonal_tp_pair[e]
+            # a core path runs from one turning point of its strip to the other
+            @test path[1] ≈ location(tps[i])
+            @test path[end] ≈ location(tps[j])
+            @test length(path) ≥ 3
+            # its racetrack encircles exactly those two
+            c = charge_contour(cubic, path)
+            for (k, tp) in enumerate(tps)
+                w = ExactWKB._winding(c, location(tp))
+                @test (k in (i, j)) ? abs(w) == 1 : w == 0
+            end
+            # and carries the same central charge as the ellipse around the pair
+            @test abs(period_integral(cubic, c)) ≈
+                  abs(period_integral(cubic, charge_contour(cubic, i, j))) rtol = 1e-9
+        end
+        @test_throws Resurgence.InvalidArgument charge_contour(cubic, [1.0 + 0im, 2.0 + 0im])
+        # a half-width so large the third turning point is swallowed
+        @test_throws ContourError charge_contour(cubic, paths[1]; margin = 5.0)
+    end
+
     @testset "error paths" begin
         @test_throws Resurgence.InvalidArgument charge_contour(cubic, 1, 1)
         @test_throws Resurgence.InvalidArgument charge_contour(cubic, 0, 2)

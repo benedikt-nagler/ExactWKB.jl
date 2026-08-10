@@ -79,10 +79,24 @@ function _sqrt_Q(prob, s, S, PA, UW, verts, K)
     sqrt(abs(Q)) * cis(uw / 2), z, Q, dz
 end
 
-# atol for turning-point / grazing detection, scaled to the potential's size on the path
+# atol for turning-point / grazing detection, scaled to the potential's size on the path.
+#
+# `sqrt(eps)` is a RELATIVE threshold, so the scale it multiplies has to be a *typical*
+# `|Q|` along the path, not an extremal one. The maximum is not typical once `Q` has
+# poles: a contour that runs anywhere near one takes `max|Q|` to infinity, and the
+# tolerance then swamps perfectly good values. Measured case (an order-4 pole 0.017 away
+# from the contour): `max|Q| = 6.0e6` put `atol` at 0.09 while the honest `|Q|` at the
+# contour's first vertex was 0.015, so a legitimate vertex was rejected as a turning
+# point and `charge_basis(prob, g)` failed on two of three chambers.
+#
+# The median is unmoved by those few huge samples, still goes to zero only where `Q`
+# genuinely does, and on a polynomial contour differs from the old scale by a constant -
+# so this loosens nothing that used to be caught (a vertex *on* a turning point has
+# `|Q| = 0` and trips any positive tolerance).
 function _period_atol(prob, verts, F)
-    scale = maximum(abs(prob(z)) for z in verts; init = one(F))
-    sqrt(eps(F)) * (1 + scale)
+    isempty(verts) && return sqrt(eps(F))
+    mags = sort!([F(abs(prob(z))) for z in verts])
+    sqrt(eps(F)) * (1 + mags[cld(length(mags), 2)])
 end
 
 # Gauss–Kronrod order for the period quadratures. The integrands are analytic on the

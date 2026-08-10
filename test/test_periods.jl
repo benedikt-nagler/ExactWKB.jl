@@ -44,6 +44,24 @@ using QuadGK: quadgk
         @test_throws ContourError period_integral(harm, loop; closed = true)
     end
 
+    @testset "a pole must not inflate the turning-point tolerance" begin
+        # Regression. `_period_atol` scaled `sqrt(eps)` by the MAXIMUM |Q| on the path.
+        # That is not a typical value once Q has poles: a contour running near one sent
+        # the tolerance far above honest |Q| values, and a perfectly good vertex was
+        # rejected as a turning point - which broke `charge_basis(prob, g)` on two of
+        # three chambers of this very problem.
+        p = RationalProblem([-0.3, -1.0, 0.0, 1.0], [0.0], [4])
+        g = stokes_graph(p; theta = 0.9)
+        c = charge_contour(p, diagonal_core_paths(g)[1])
+        # the contour really does dip next to the order-4 pole, so max|Q| really is huge
+        @test minimum(abs, c) < 0.05
+        @test maximum(abs(p(z)) for z in c) > 1e5
+        # the invariant that was violated: the tolerance must sit below every |Q| the
+        # contour actually takes, or it flags vertices that are nowhere near a zero
+        @test ExactWKB._period_atol(p, c, Float64) < minimum(abs(p(z)) for z in c)
+        @test isfinite(period_integral(p, c))
+    end
+
     @testset "BigFloat contour → BigFloat result" begin
         setprecision(256) do
             E = big"2.0"
