@@ -49,8 +49,11 @@ export Saddle, saddle_candidates, saddles, is_saddle, stokes_graph_family, centr
 export voros_value, ddp_transform, verify_ddp, verify_ddp_mutation, ddp_seed,
        intersection_pairing
 export IdealTriangulation, ideal_triangulation, triangulation_quiver, n_diagonals,
-       diagonals, n_marked_points, infinite_lines, ray_exit_angles, flip,
-       canonical_reorder
+       diagonals, n_marked_points, n_boundaries, infinite_lines, boundary_lines,
+       ray_exit_angles, flip, canonical_reorder, diagonal_core_paths,
+       puncture_valence
+export PolygonDecomposition, polygon_decomposition, cells, cell_tp, cell_sizes,
+       n_cells, is_triangulation, refinements, n_refinements
 export ChargeBasis, charge_basis, charge_contour, bridge_seed, n_charges,
        central_charges, signs, physical_charges, signed_pairing
 export signed_frame, verify_signed_frame, chamber_walls, reference_theta
@@ -83,6 +86,7 @@ include("saddles.jl")
 include("ddp.jl")
 include("quantization.jl")
 include("double_well.jl")
+include("polygon_decomposition.jl")
 include("triangulation.jl")
 include("charge_lattice.jl")
 include("signed_frame.jl")
@@ -142,6 +146,9 @@ end
         harm = SchrodingerProblem([0.0, 0.0, 1.0])
         spectral_cycles(harm, 1.0)
         wkb_eigenvalue(harm, 0, 0.3; order = 2)
+        # the degenerate dual: a double turning point and its two refinements
+        refinements(polygon_decomposition(stokes_graph(SchrodingerProblem([0.0, 0.0, 1.0]);
+                                                       theta = 0.3)))
     end
 end
 

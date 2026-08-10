@@ -6,7 +6,8 @@
 module ExactWKBMakieExt
 
 using ExactWKB
-using ExactWKB: lines, points, location, is_finite_line, turning_points, is_simple
+using ExactWKB: lines, points, location, is_finite_line, turning_points, is_simple,
+                endpoint, target, poles
 using Makie: Makie, Figure, Axis, lines!, scatter!, text!, DataAspect, axislegend, @L_str
 
 # colour roles (backend-agnostic named colours)
@@ -81,7 +82,21 @@ function ExactWKB.plot_triangulation(g::StokesGraph, t::IdealTriangulation;
     R = maximum(abs(points(l)[end]) for l in ExactWKB.infinite_lines(g))
     φ = range(0, 2π; length = 256)
     lines!(ax, R .* cos.(φ), R .* sin.(φ); color = (:gray, 0.6), linestyle = :dot)
-    mp = [R * cis(a) for a in t.marked_angles]
+    # Where a marked point goes: on the escape circle at infinity, on its own small
+    # circle at a finite pole, and AT the pole for a puncture - a puncture is a vertex
+    # of the surface, not a point on any circle, and its `marked_angles` entry is the
+    # mean arrival angle of its spiralling rays, which is display data with no
+    # geometric meaning.
+    pls = poles(g)
+    pr = [maximum((abs(points(l)[end] - pls[j])
+                   for l in lines(g) if endpoint(l) === :pole && target(l) == j);
+                  init = 0.0) for j in eachindex(pls)]
+    mp = map(1:t.n_marked) do i
+        c = t.marked_boundary[i]
+        c == 1 && return R * cis(t.marked_angles[i])
+        t.marked_is_puncture[i] ? complex(pls[c - 1]) :
+                                  pls[c - 1] + pr[c - 1] * cis(t.marked_angles[i])
+    end
     scatter!(ax, Float64.(real.(mp)), Float64.(imag.(mp));
              color = _MARKED_COLOR, markersize = 12, label = "marked point")
     first_diag = true

@@ -163,13 +163,27 @@ end
 
 # -- IdealTriangulation --------------------------------------------------------------
 
+# The surface, named the way a reader would name it. A disk is "the m-gon" (the only
+# case before poles existed), and the general one has to say what it is: `n_boundaries`
+# counts singularities, of which `n_punctures` are punctures rather than circles.
+function _surface_desc(nm, nsing, npunc)
+    circles, m = nsing - npunc, nm - npunc
+    npunc == 0 && circles == 1 && return "$(m)-gon"
+    npunc == 0 && circles == 2 && return "annulus ($m marked points)"
+    npunc == 1 && circles == 1 && return "once-punctured $(m)-gon"
+    "sphere with $circles boundary circle$(circles == 1 ? "" : "s") " *
+        "($m marked point$(m == 1 ? "" : "s")) and $npunc puncture" *
+        (npunc == 1 ? "" : "s")
+end
+_surface_desc(t) = _surface_desc(t.n_marked, n_boundaries(t), n_punctures(t))
+
 function Base.show(io::IO, t::IdealTriangulation)
-    print(io, "IdealTriangulation(", t.n_marked, "-gon, ", length(t.triangles),
+    print(io, "IdealTriangulation(", _surface_desc(t), ", ", length(t.triangles),
           " triangles, ", n_diagonals(t), " diagonals)")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", t::IdealTriangulation)
-    print(io, "IdealTriangulation of the ", t.n_marked, "-gon (dual Stokes regions)\n",
+    print(io, "IdealTriangulation of the ", _surface_desc(t), " (dual Stokes regions)\n",
           "  triangles : ", length(t.triangles), " (one per turning point)\n",
           "  diagonals : ")
     if n_diagonals(t) == 0
@@ -179,6 +193,23 @@ function Base.show(io::IO, ::MIME"text/plain", t::IdealTriangulation)
                  for e in 1:n_diagonals(t)]
         print(io, join(parts, ", "))
     end
+end
+
+# -- PolygonDecomposition ------------------------------------------------------------
+
+function Base.show(io::IO, d::PolygonDecomposition)
+    print(io, "PolygonDecomposition(", _surface_desc(d), ", ", n_cells(d), " cells ",
+          Tuple(cell_sizes(d)), ", ", n_diagonals(d), " diagonals)")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", d::PolygonDecomposition)
+    print(io, "PolygonDecomposition of the ", _surface_desc(d),
+          " (dual Stokes regions)\n",
+          "  cells     : ", join(string.(cell_sizes(d)), "-gon, "), "-gon",
+          " (one per turning point)\n",
+          "  diagonals : ", n_diagonals(d), "\n",
+          "  refines to: ", n_refinements(d), " ideal triangulation",
+          n_refinements(d) == 1 ? "" : "s")
 end
 
 # -- ChargeBasis ---------------------------------------------------------------------

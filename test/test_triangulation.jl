@@ -166,6 +166,28 @@ end
         @test_throws Resurgence.InvalidArgument flip(t, 1; direction = 0)
     end
 
+    @testset "surface invariants: a polynomial problem gives a disk" begin
+        # The general construction reduces to the disk when Q has no poles, and the
+        # divisor identity n = M + 2b − 4 and the region count 2n + 2 − b reduce to
+        # d = (d+2) + 2 − 4 and 2d + 1. Corners are aligned with edges: edge slot i
+        # runs from corner i to corner i+1 - the datum `flip` needs on any surface.
+        for (name, prob, d, _) in fixtures
+            t = ideal_triangulation(stokes_graph(prob; theta = _generic_theta(prob)))
+            @test ExactWKB.n_boundaries(t) == 1
+            @test all(==(1), t.marked_boundary)
+            @test n_marked_points(t) == d + 2
+            @test length(t.triangles) == length(t.triangle_corners)
+            for s in eachindex(t.triangles)
+                for i in 1:3
+                    e = t.triangles[s][i]
+                    c1 = t.triangle_corners[s][i]
+                    c2 = t.triangle_corners[s][mod1(i + 1, 3)]
+                    @test t.edge_endpoints[e] == (min(c1, c2), max(c1, c2))
+                end
+            end
+        end
+    end
+
     @testset "non-generic graphs are refused" begin
         prob = SchrodingerProblem([0.0, -1.0, 0.0, 1.0])
         # θ exactly on the (1,2) wall: the finite line is present
