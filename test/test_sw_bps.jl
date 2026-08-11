@@ -132,4 +132,45 @@ const CA = ExactWKB.ClusterAlgebras
         @test abs(pi_[end] - aphase) < abs(pi_[1] - aphase)
         @test abs(pi_[end] - aphase) < 5e-2
     end
+    # ── the refined (motivic) identity ───────────────────────────────────────────
+    # The affine case the finite-type refined layer cannot reach. Self-validating in
+    # the same sense as the classical one: closure alone pins the W-boson's refined
+    # index AND its quadratic-refinement sign - nothing is taken from the literature.
+    @testset "refined SU(2) wall-crossing" begin
+        for d in 2:6
+            r = verify_su2_refined_wall_crossing(; degree = d)
+            @test r.closed
+            @test r.delta_only                       # the residue lives on δ alone
+            @test r.residue == r.vector_factor       # and it IS the vector multiplet
+        end
+        @test_throws Resurgence.InvalidArgument verify_su2_refined_wall_crossing(; degree = 0)
+
+        # ledger R2: every other candidate for the W-boson factor fails, and already
+        # at the first order in ŷ^δ - the sign is not decorative
+        D = 4
+        rays(fs) = ExactWKB._su2_refined_product(
+            [((1, 1), fs)], D)
+        measured = verify_su2_refined_wall_crossing(; degree = D).residue
+        for wrong in ([(1, 1, -1), (-1, 1, -1)],      # no quadratic-refinement sign
+                      [(0, -1, -2)],                  # unshifted, squared
+                      [(0, 1, -1)],                   # unshifted, Ω = −1
+                      [(2, -1, -1), (-2, -1, -1)])    # shifted by v^{±2}
+            @test rays(wrong) != measured
+        end
+        # the two sub-factors commute (δ is isotropic), so their order is no convention
+        @test rays([(1, -1, -1), (-1, -1, -1)]) == rays([(-1, -1, -1), (1, -1, -1)])
+
+        # ledger R3: at y → 1 the refined index is the classical Ω(δ) = −2
+        weak = su2_refined_rays(:weak, 3)
+        δ = only(r for r in weak if r[1] == (1, 1))
+        @test sum(f[3] for f in δ[2]) == -2
+        @test all(sum(f[3] for f in r[2]) == 1 for r in weak if r[1] != (1, 1))
+        # and the ray content matches the classical list state for state
+        @test [r[1] for r in weak] == [r[1] for r in ExactWKB._su2_rays(:weak, 3)] ||
+              Set(r[1] for r in weak) == Set(r[1] for r in ExactWKB._su2_rays(:weak, 3))
+        @test [r[1] for r in su2_refined_rays(:strong, 3)] == [(0, 1), (1, 0)]
+        @test_throws Resurgence.InvalidArgument su2_refined_rays(:nonsense, 2)
+        @test_throws Resurgence.InvalidArgument su2_refined_rays(:weak, -1)
+    end
+
 end

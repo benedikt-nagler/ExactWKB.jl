@@ -75,6 +75,7 @@ export SeibergWittenSU2, sw_periods, sw_period_derivatives, quantum_sw_periods,
        sw_singularities,
        sw_monodromy, dynamical_scale, continue_periods, ms_wall, sw_chamber
 export su2_bps_quiver, su2_bps_states, verify_su2_wall_crossing
+export su2_refined_rays, verify_su2_refined_wall_crossing
 export plot_stokes_graph, plot_triangulation
 
 include("errors.jl")

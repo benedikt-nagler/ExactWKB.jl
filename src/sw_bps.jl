@@ -184,3 +184,125 @@ function verify_su2_wall_crossing(; degree::Integer = 4)
     end
     (; closed = iszero(max_res), max_residual = max_res)
 end
+
+# ── refined (motivic) Kontsevich–Soibelman wall-crossing ──────────────────────────────
+#
+# The same identity in the quantum torus, where each state contributes quantum
+# dilogarithm factors rather than a Poisson ray automorphism. Everything about the
+# torus is `src/refined.jl`'s ledger; what is new here is the *affine* case, i.e. a
+# state whose refined index is not 1.
+#
+# ── Ledger (pinned by `verify_su2_refined_wall_crossing`, self-validating) ────────────
+# R1. THE TORUS. Λ = −B of `su2_bps_quiver()` = [0 −2; 2 0], i.e. refined.jl's ledger
+#     item 1 applied to the Kronecker quiver - no new convention. Factor order is the
+#     ray order in the abstract basis: the strong side is 𝔼(ŷ^{γ₂})𝔼(ŷ^{γ₁}), the weak
+#     side runs (1,0), (2,1), (3,2), … , δ , … , (2,3), (1,2), (0,1) - preprojective
+#     dyons by increasing n, then the W-boson, then preinjective dyons by decreasing n.
+# R2. THE W-BOSON FACTOR WAS DERIVED, NOT ASSERTED. Dividing the strong product by the
+#     two dyon towers leaves a residue supported on multiples of δ alone, and that
+#     residue is
+#
+#         𝔼(−v ŷ^δ)^{-1} · 𝔼(−v^{-1} ŷ^δ)^{-1}
+#
+#     verified to ŷ-degree 8. This is Ω(δ, y) = −y − y^{-1} (a vector multiplet, [DG09])
+#     *together with the quadratic-refinement sign* σ(δ) = −1: the argument carries a
+#     minus, exactly as the classical layer's ray automorphism uses (1 − X_γ). Without
+#     the sign nothing closes - the candidates 𝔼(v^{±1}ŷ^δ)^{-1}, 𝔼(ŷ^δ)^{-2} and
+#     𝔼(v^{±2}ŷ^δ)^{-1} were each measured and each fails at order ŷ^δ. The two
+#     sub-factors commute (δ is isotropic), so their order is not a convention.
+# R3. CLASSICAL LIMIT. Summing the exponents of the W-boson's factors gives −2 = the
+#     classical Ω(δ) of `_su2_rays`, i.e. the refined index at y → 1.
+
+# One BPS state's refined contribution: the charge and a list of (shift, sign, exponent)
+# triples, the factor being ∏ 𝔼(σ v^{shift} ŷ^γ)^{exponent}.
+const _RefinedRay = Tuple{Tuple{Int,Int},Vector{NTuple{3,Int}}}
+
+_hypermultiplet() = [(0, 1, 1)]                       # 𝔼(ŷ^γ), Ω = 1
+_vector_multiplet() = [(1, -1, -1), (-1, -1, -1)]     # 𝔼(−vŷ^δ)⁻¹𝔼(−v⁻¹ŷ^δ)⁻¹, Ω = −y−y⁻¹
+
+"""
+    su2_refined_rays(chamber::Symbol, tower::Integer) -> Vector
+
+The refined BPS rays of pure ``SU(2)`` in the abstract Kronecker basis: one entry
+`(γ, factors)` per state, in ray order, where `factors` is a list of
+`(shift, sign, exponent)` triples and the state contributes
+``∏ 𝔼(σ v^{shift} ŷ^γ)^{exponent}``.
+
+A hypermultiplet is the single factor `𝔼(ŷ^γ)` (refined index `1`); the W-boson
+`δ = (1,1)` is `𝔼(−v ŷ^δ)^{-1} 𝔼(−v^{-1} ŷ^δ)^{-1}`, the refined index
+`Ω(δ, y) = −y − y^{-1}` with the quadratic-refinement sign (ledger R2). The dyon
+towers are truncated at `tower`.
+"""
+function su2_refined_rays(chamber::Symbol, tower::Integer)
+    tower ≥ 0 || throw(Resurgence.InvalidArgument("tower must be ≥ 0, got $tower"))
+    if chamber === :strong
+        return _RefinedRay[((0, 1), _hypermultiplet()), ((1, 0), _hypermultiplet())]
+    elseif chamber === :weak
+        rays = _RefinedRay[]
+        for n in 0:tower
+            push!(rays, ((n + 1, n), _hypermultiplet()))       # preprojective, slope ↗ 1
+        end
+        push!(rays, ((1, 1), _vector_multiplet()))             # the W-boson
+        for n in tower:-1:0
+            push!(rays, ((n, n + 1), _hypermultiplet()))       # preinjective, slope 1 ↗ ∞
+        end
+        return rays
+    end
+    throw(Resurgence.InvalidArgument("chamber must be :strong or :weak, got :$chamber"))
+end
+
+# The ordered dilogarithm product of a refined ray list, in the Kronecker torus.
+function _su2_refined_product(rays::Vector{_RefinedRay}, D::Int)
+    charges, shifts, signs, exps = Vector{Int}[], Int[], Int[], Int[]
+    for (γ, factors) in rays, (s, σ, e) in factors
+        push!(charges, [γ[1], γ[2]])
+        push!(shifts, s)
+        push!(signs, σ)
+        push!(exps, e)
+    end
+    n = length(charges)
+    w = ClusterAlgebras.QuantumDilogWord(charges, _su2_refined_skew(), ones(Int, n),
+                                         ones(Int, n), shifts, exps, signs)
+    ClusterAlgebras.ks_dilog_product(w; truncation_degree = D)
+end
+
+# Λ = −B of the Kronecker BPS quiver (refined.jl ledger item 1, ledger R1 here).
+_su2_refined_skew() = -su2_bps_quiver().B[1:2, 1:2]
+
+"""
+    verify_su2_refined_wall_crossing(; degree = 4) -> NamedTuple
+
+Verify the **refined (motivic)** pure-``SU(2)`` wall-crossing identity to total
+``ŷ``-degree `degree`: the strong-chamber quantum dilogarithm product
+``𝔼(ŷ^{γ₂}) 𝔼(ŷ^{γ₁})`` equals the ray-ordered weak-chamber product over the two dyon
+towers and the W-boson, in the Kronecker quantum torus.
+
+Returns `(; closed, vector_factor, residue)`: `closed` says the two sides agree
+exactly as truncated series over `Frac(ℤ[v])`, `residue` is the strong product
+divided by the two dyon towers - the W-boson factor **as measured**, which
+`vector_factor` reproduces from `Ω(δ, y) = −y − y^{-1}` with the quadratic-refinement
+sign (ledger R2). At `v → 1` the exponents sum to the classical `Ω(δ) = −2` of
+[`verify_su2_wall_crossing`](@ref).
+"""
+function verify_su2_refined_wall_crossing(; degree::Integer = 4)
+    degree ≥ 1 || throw(Resurgence.InvalidArgument("degree must be ≥ 1, got $degree"))
+    D = Int(degree)
+    tower = D                                    # saturates: P_n has ŷ-degree 2n+1
+    strong = _su2_refined_product(su2_refined_rays(:strong, tower), D)
+    weak = _su2_refined_product(su2_refined_rays(:weak, tower), D)
+
+    # the measured residue: strong ÷ (both towers), which must be supported on δ alone
+    Λ = _su2_refined_skew()
+    _, v = ClusterAlgebras._ks_ring(D)
+    left = _su2_refined_product(_RefinedRay[((n + 1, n), _hypermultiplet())
+                                            for n in 0:tower], D)
+    right = _su2_refined_product(_RefinedRay[((n, n + 1), _hypermultiplet())
+                                             for n in tower:-1:0], D)
+    residue = ClusterAlgebras._qt_mul(
+        ClusterAlgebras._qt_mul(ClusterAlgebras._qt_inv(left, Λ, v, D), strong, Λ, v, D),
+        ClusterAlgebras._qt_inv(right, Λ, v, D), Λ, v, D)
+    vector = _su2_refined_product(_RefinedRay[((1, 1), _vector_multiplet())], D)
+
+    (; closed = strong == weak, vector_factor = vector, residue,
+       delta_only = all(γ[1] == γ[2] for γ in keys(residue)))
+end
