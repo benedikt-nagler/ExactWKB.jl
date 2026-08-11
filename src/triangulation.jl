@@ -49,6 +49,25 @@
 # strips each have one arc and one puncture end, while in the chamber θ ≈ 1.5 the
 # puncture has valence 2 and one strip reverts to two arcs.
 #
+# SELF-FOLDED TRIANGLES are the case of a puncture of valence 1, and they are not a
+# second construction either - they are what happens when the two corners of a strip
+# land on the SAME turning point. With one ray `r` spiralling in, the puncture vertex
+# has a single dart, so the face walk sends `r` straight back out along the previous
+# ray of its own turning point `s`: the region is the quadrilateral z_s → M → z_s → P,
+# a strip occupying two of the three sectors of `s`. That region is FST's *radius*,
+# joining a boundary marked point to the puncture; the third sector holds the
+# *enclosing loop*, which runs from M back to M. The dual triangle is therefore
+# (r, r, ℓ) with corners (M, P, M) - all of which the existing rules produce, because
+# "corner slot i is the class of ray i" never assumed the three classes were distinct.
+# So the walk is written over turning-point SECTORS rather than turning points, and
+# a diagonal's `diagonal_tp_pair` may be (s, s).
+#
+# The one place the mathematics genuinely changes is the quiver: FST's exchange matrix
+# at a self-folded triangle is defined through the substitution π(radius) = loop, so
+# the radius row is a copy of the loop row and there is no arrow between them
+# ([FST08] Def. 4.1, `triangulation_quiver` below). Getting this wrong turns the
+# once-punctured triangle from A₃ into A₂ × A₁.
+#
 # The construction is purely combinatorial - no geometry is reconstructed. The traced
 # graph is turned into a planar map (rotation system) whose faces are enumerated by
 # the standard dual-walk φ(dart) = cw-next(reverse(dart)); the only numerical input
@@ -209,11 +228,59 @@ n_punctures(t::IdealTriangulation) = count(t.marked_is_puncture)
 
 The number of edges of `t` incident to marked point `i`, counting a loop twice. At a
 puncture this is its valence in the dual triangulation - the number of Stokes rays
-that spiral into it - and `1` is the self-folded case that
-[`ideal_triangulation`](@ref) refuses.
+that spiral into it - and `1` is the self-folded case
+([`selffolded_triangles`](@ref)).
 """
 puncture_valence(t::IdealTriangulation, i::Integer) =
     sum(count(==(i), e) for e in t.edge_endpoints; init = 0)
+
+"""
+    selffolded_triangles(t::IdealTriangulation) -> Vector{Int}
+
+The indices of the **self-folded** triangles of `t` - those carrying the same edge
+twice. A self-folded triangle wraps a puncture of valence 1: its repeated side is the
+*radius* joining a marked point to the puncture, and its third side the *loop*
+enclosing it ([`selffold_arcs`](@ref)). Empty unless the surface has a puncture.
+"""
+selffolded_triangles(t::IdealTriangulation) =
+    findall(tri -> !allunique(tri), t.triangles)
+
+"""
+    is_selffolded(t::IdealTriangulation, s::Integer) -> Bool
+
+Whether triangle `s` of `t` is self-folded (carries the same edge twice).
+"""
+is_selffolded(t::IdealTriangulation, s::Integer) = !allunique(t.triangles[s])
+
+"""
+    selffold_arcs(t::IdealTriangulation, s::Integer) -> (radius, loop)
+
+The two edge indices of the self-folded triangle `s`: the `radius`, which is the side
+it carries twice (an arc from a marked point to the puncture), and the enclosing
+`loop`, its third side (an arc from that marked point back to itself). Throws if `s`
+is not self-folded.
+"""
+function selffold_arcs(t::IdealTriangulation, s::Integer)
+    tri = t.triangles[s]
+    r = findfirst(e -> count(==(e), tri) == 2, collect(tri))
+    r === nothing && throw(Resurgence.InvalidArgument(
+        "selffold_arcs: triangle $s is not self-folded (its edges are $tri)"))
+    (tri[r], only(e for e in tri if e != tri[r]))
+end
+
+# The FST substitution π ([FST08] Def. 4.1) as its PREIMAGES on the diagonals of `t`:
+# `pre[k]` lists the diagonals γ with π(γ) = k. π sends the radius of a self-folded
+# triangle to its enclosing loop and fixes every other arc, so `pre[loop]` is the pair
+# (loop, radius), `pre[radius]` is empty, and every other entry is a singleton.
+function _fst_pi_preimages(t::IdealTriangulation)
+    pre = [[k] for k in 1:n_diagonals(t)]
+    for s in selffolded_triangles(t)
+        r, ℓ = selffold_arcs(t, s)
+        filter!(!=(r), pre[r])
+        push!(pre[ℓ], r)
+    end
+    pre
+end
 
 """
     n_diagonals(t::IdealTriangulation) -> Int
@@ -247,6 +314,19 @@ end
 
 # circular distance of two angles
 _circ_dist(a, b) = abs(_wrap(a - b))
+
+# The canonical rotation of a cell: the shift making (edges, corners) lexicographically
+# least. `argmin(edges) - 1` is the same thing whenever the edges are distinct, and is
+# AMBIGUOUS when they are not - a self-folded triangle (r, r, ℓ) with r < ℓ has two
+# rotations starting at r, and picking either at random breaks `flip ∘ flip == id`.
+function _canonical_rotation(edges, corners)
+    v = length(edges)
+    key(sh) = ([edges[mod1(i + sh, v)] for i in 1:v],
+               [corners[mod1(i + sh, v)] for i in 1:v])
+    argmin(key, 0:(v - 1))
+end
+
+_rotate_cell(x, shift) = [x[mod1(i + shift, length(x))] for i in eachindex(x)]
 
 # A short arc on a boundary circle from `za` to `zb` about `centre`, the short way
 # round (the two exits are adjacent positions on the circle, so the short way is the
@@ -324,6 +404,11 @@ Why not a straight segment: on a punctured surface two diagonals can join the *s
 pair of turning points and differ only by a loop around a hole - on the annulus that
 is exactly the difference between the monopole and the dyon - so the pair is not a
 name for the cycle and only the strip decides.
+
+For the radius of a self-folded triangle the two turning points coincide, and one of
+the strip's two sides degenerates to the ray into the puncture traversed out and back;
+the path returned is the other one, a closed excursion from that turning point around
+the enclosing loop.
 """
 diagonal_core_paths(g::StokesGraph) = _build_decomposition(g)[2]
 
@@ -503,22 +588,25 @@ function _build_decomposition(g::StokesGraph{F}) where {F}
     length(faces) == L - n + 2 - nb || throw(NonGenericGraph(
         "expected $(L - n + 2 - nb) Stokes regions, found $(length(faces))"))
 
-    # 4. classify faces: one turning point on the boundary ⇒ half-plane region ⇒
-    # boundary edge; two ⇒ strip region ⇒ diagonal. The other index is the number of
+    # 4. classify faces: one turning-point SECTOR on the boundary ⇒ half-plane region
+    # ⇒ boundary edge; two ⇒ strip region ⇒ diagonal. The other index is the number of
     # ENDS - the places where the region reaches a singularity - and an end is a
     # boundary arc OR a visit to a puncture vertex (an inward ray dart based there).
     # On an unpunctured surface every end is an arc and this is the original rule.
+    #
+    # Sectors, not distinct turning points: the two corners of a strip may sit at the
+    # SAME turning point, which is the radius of a self-folded triangle (see the
+    # self-fold note in the header). Each outward ray dart of the orbit is one sector,
+    # so `face_tps` is a multiset and `[s, s]` is the self-folded case.
     face_tps = Vector{Vector{Int}}(undef, length(faces))
     for (f, orbit) in enumerate(faces)
         tps = Int[]
         ends = 0
         for d in orbit
             if d ≤ L
-                lines[d].source in tps || push!(tps, lines[d].source)
+                push!(tps, lines[d].source)
             elseif d ≤ 2L
-                ℓ = d - L
-                lines[ℓ].source in tps || push!(tps, lines[ℓ].source)
-                is_punc[circle[ℓ]] && (ends += 1)
+                is_punc[circle[d - L]] && (ends += 1)
             else
                 ends += 1
             end
@@ -527,7 +615,7 @@ function _build_decomposition(g::StokesGraph{F}) where {F}
         face_tps[f] = tps
         ok = (length(tps) == 1 && ends == 1) || (length(tps) == 2 && ends == 2)
         ok || throw(NonGenericGraph(
-            "Stokes region with $(length(tps)) turning points and $ends ends " *
+            "Stokes region with $(length(tps)) turning-point sectors and $ends ends " *
             "(boundary arcs and puncture visits) - not a half-plane or strip region " *
             "of a generic graph"))
     end
@@ -558,26 +646,46 @@ function _build_decomposition(g::StokesGraph{F}) where {F}
     # edge-faces (F(r₁), …, F(r_{m+2})) counterclockwise, and the corner between
     # consecutive edge-faces (F(r_k), F(r_{k+1})) sits at the shared ray r_{k+1} -
     # corners are labelled by rays (L corners, one per ray).
+    # A cell may meet the same Stokes region in two of its sectors - exactly once, and
+    # only if that region is the radius of a self-folded triangle, which `face_tps`
+    # already recorded as the multiset [s, s].
     cell_faces = Vector{Vector{Int}}(undef, n)
     for s in 1:n
         fs = [face_of[r] for r in rays[s]]
-        allunique(fs) || throw(NonGenericGraph(
-            "two sectors of turning point $s lie in the same Stokes region"))
+        for f in unique(fs)
+            c = count(==(f), fs)
+            c == 1 && continue
+            (c == 2 && isdiag[f] && face_tps[f] == [s, s]) || throw(NonGenericGraph(
+                "turning point $s meets the Stokes region $f in $c of its sectors, " *
+                "and that region is not the radius of a self-folded triangle"))
+        end
         cell_faces[s] = fs
     end
 
     # 6. glue cells along diagonals: identify corners with reversed orientation.
     # If diagonal f occupies sector (r_a, r_{a+1}) of s and (r_b, r_{b+1}) of s′, the
     # gluing is corner(r_a) ~ corner(r′_{b+1}) and corner(r_{a+1}) ~ corner(r′_b).
-    sector_index(s, f) = begin
+    sector_indices(s, f) = begin
         idx = findall(==(f), cell_faces[s])
-        length(idx) == 1 || throw(NonGenericGraph(
-            "the Stokes region dual to an edge is adjacent to turning point $s more " *
-            "than once: its dual triangle has the same edge twice, i.e. a " *
-            "SELF-FOLDED triangle at a puncture of valence 1. That needs a tagged " *
-            "triangulation ([FST08]), which this layer does not have - perturb θ " *
-            "into a neighbouring chamber, where the puncture has valence ≥ 2"))
-        idx[1]
+        length(idx) == count(==(s), face_tps[f]) || throw(NonGenericGraph(
+            "the Stokes region dual to an edge meets turning point $s in " *
+            "$(length(idx)) sectors but is classified with " *
+            "$(count(==(s), face_tps[f])) - the face walk is inconsistent"))
+        idx
+    end
+    sector_index(s, f) = sector_indices(s, f)[1]
+    # The two corners of a strip region, as (turning point, sector) pairs `(s, a, s′, b)`.
+    # They agree in the turning point - never in the sector - exactly when the strip is
+    # the radius of a SELF-FOLDED triangle: the diagonal borders one triangle on both
+    # sides, so the two sectors come from one cell.
+    strip_sectors(f) = begin
+        s, s′ = face_tps[f]
+        if s == s′
+            a, b = sector_indices(s, f)
+            (s, a, s′, b)
+        else
+            (s, sector_index(s, f), s′, sector_index(s′, f))
+        end
     end
     parent = collect(1:L)                       # union-find over rays (= corners)
     # Every ray spiralling into a puncture has its corner AT the puncture, so those
@@ -591,10 +699,12 @@ function _build_decomposition(g::StokesGraph{F}) where {F}
             _uf_union!(parent, pring[c][1], pring[c][i])
         end
     end
+    # The same rule glues a self-folded strip to itself (s = s′): one of its two
+    # identifications is trivial and the other fuses the cell's two boundary corners
+    # into the single marked point the loop runs from and back to.
     for f in eachindex(faces)
         isdiag[f] || continue
-        s, s′ = face_tps[f]
-        a, b = sector_index(s, f), sector_index(s′, f)
+        s, a, s′, b = strip_sectors(f)
         _uf_union!(parent, rays[s][a], rays[s′][mod1(b + 1, val[s′])])
         _uf_union!(parent, rays[s][mod1(a + 1, val[s])], rays[s′][b])
     end
@@ -652,7 +762,9 @@ function _build_decomposition(g::StokesGraph{F}) where {F}
     marked_boundary = Int[class_circle[r] for r in roots_sorted]
     marked_is_puncture = Bool[is_punc[class_circle[r]] for r in roots_sorted]
 
-    # 8. edge endpoints: the two corners flanking the sector a face occupies.
+    # 8. edge endpoints: the two corners flanking the sector a face occupies. Either
+    # sector will do for a self-folded strip - its two are consecutive, so one runs
+    # M → P and the other P → M, the same unordered pair.
     endpoint_pair = Vector{Tuple{Int,Int}}(undef, length(faces))
     for f in eachindex(faces)
         s = face_tps[f][1]
@@ -667,8 +779,10 @@ function _build_decomposition(g::StokesGraph{F}) where {F}
     # hole - on the annulus both arcs of Ã(1,1) join the same two turning points -
     # so the two ray sectors the strip occupies break the tie. Sectors are indexed by
     # the exact ray directions at a turning point, so this stays canonical.
-    diag_key(f) = (face_tps[f][1], face_tps[f][2],
-                   sector_index(face_tps[f][1], f), sector_index(face_tps[f][2], f))
+    diag_key(f) = begin
+        s, a, s′, b = strip_sectors(f)
+        (s, s′, a, b)
+    end
     diag_faces = findall(isdiag)
     allunique(diag_key(f) for f in diag_faces) || throw(NonGenericGraph(
         "two strip regions share the same turning-point pair and sectors"))
@@ -690,12 +804,11 @@ function _build_decomposition(g::StokesGraph{F}) where {F}
     cells = Vector{Vector{Int}}(undef, n)
     corners = Vector{Vector{Int}}(undef, n)
     for s in 1:n
-        v = val[s]
         e = [new_id[f] for f in cell_faces[s]]
         c = [marked_label[_uf_find(parent, r)] for r in rays[s]]
-        shift = argmin(e) - 1                   # rotate to start at the smallest edge
-        cells[s] = [e[mod1(i + shift, v)] for i in 1:v]
-        corners[s] = [c[mod1(i + shift, v)] for i in 1:v]
+        shift = _canonical_rotation(e, c)
+        cells[s] = _rotate_cell(e, shift)
+        corners[s] = _rotate_cell(c, shift)
     end
 
     tri = PolygonDecomposition(nmarked, edge_endpoints, is_diagonal, cells,
@@ -713,12 +826,14 @@ function _build_decomposition(g::StokesGraph{F}) where {F}
     tpz = [tp.z for tp in g.turning_points]
     core_paths = Vector{Vector{Complex{F}}}(undef, length(diag_faces))
     for (i, f) in enumerate(diag_faces)
-        s, s′ = face_tps[f]
-        a, b = sector_index(s, f), sector_index(s′, f)
+        s, a, s′, b = strip_sectors(f)
         sides = ((rays[s][a], rays[s′][mod1(b + 1, val[s′])]),
                  (rays[s][mod1(a + 1, val[s])], rays[s′][b]))
+        # A self-folded strip has one degenerate side, the ray into the puncture
+        # traversed out and back; the other side is the honest path round the loop.
+        live_sides = filter(sd -> sd[1] != sd[2], collect(sides))
         cost(sd) = lines[sd[1]].mass + lines[sd[2]].mass
-        p, q = cost(sides[1]) ≤ cost(sides[2]) ? sides[1] : sides[2]
+        p, q = argmin(cost, live_sides)
         circle[p] == circle[q] || throw(NonGenericGraph(
             "the two rays bounding a side of the strip region of diagonal $i reach " *
             "different singularities - the gluing and the trace disagree"))
@@ -742,8 +857,14 @@ end
 The adjacency quiver of the triangulation: one vertex per diagonal (in the canonical
 order of `t`, labelled `"γ(i,j)"` by the turning-point pair), and for each triangle
 one arrow between each counterclockwise-consecutive pair of its diagonals. Internal
-triangles always come out as oriented 3-cycles, so this quiver is finite type
-`A_{d−1}` for every chamber.
+triangles always come out as oriented 3-cycles, so on a disk this quiver is finite
+type `A_{d−1}` for every chamber.
+
+**Self-folded triangles** follow Fomin-Shapiro-Thurston: they contribute no arrows of
+their own, and every other triangle's arrows are read through the substitution
+π(radius) = enclosing loop. The radius therefore receives a copy of the loop's arrows
+and no arrow to the loop itself. Without that rule the once-punctured triangle would
+come out `A₂ × A₁` instead of `A₃`.
 
 It equals the physical seed quiver of [`charge_basis`](@ref) **exactly**:
 `B == −signed_pairing(cb)`, the tightened keystone. (The original bridge layer could only assert
@@ -753,16 +874,59 @@ It equals the physical seed quiver of [`charge_basis`](@ref) **exactly**:
 function triangulation_quiver(t::IdealTriangulation)
     m = n_diagonals(t)
     B = zeros(Int, m, m)
-    for tri in t.triangles
+    pre = _fst_pi_preimages(t)
+    for (s, tri) in enumerate(t.triangles)
+        is_selffolded(t, s) && continue
         for c in 1:3
             i, j = tri[c], tri[mod1(c + 1, 3)]
             (t.is_diagonal[i] && t.is_diagonal[j]) || continue
-            B[i, j] += 1
-            B[j, i] -= 1
+            for a in pre[i], b in pre[j]
+                a == b && continue          # identified by π ⇒ no arrow
+                B[a, b] += 1
+                B[b, a] -= 1
+            end
         end
     end
     labels = ["γ($(p[1]),$(p[2]))" for p in t.diagonal_tp_pair]
     ClusterAlgebras.Quiver(B, m, ones(Int, m), labels)
+end
+
+"""
+    TaggedArc
+
+A tagged arc of Fomin-Shapiro-Thurston: an unordered pair of `endpoints` with a
+`tags` entry (`:plain` or `:notched`) aligned to each. Produced by
+[`tagged_arcs`](@ref); `ExactWKB` does not flip tagged arcs (see [`flip`](@ref)).
+"""
+struct TaggedArc
+    endpoints::Tuple{Int,Int}
+    tags::Tuple{Symbol,Symbol}
+end
+
+"""
+    tagged_arcs(t::IdealTriangulation) -> Vector{TaggedArc}
+
+The tagged triangulation `τ(t)` of Fomin-Shapiro-Thurston, one [`TaggedArc`](@ref)
+per diagonal in the order of [`diagonals`](@ref). Every arc is plain at every end,
+*except* that the enclosing loop of a self-folded triangle is replaced by its own
+radius **notched at the puncture** - the device that makes the loop and the radius two
+distinct arcs sharing one pair of endpoints, and the reason the exchange matrix of
+[`triangulation_quiver`](@ref) has no arrow between them.
+
+On a surface with no self-folded triangle this is the diagonals themselves, all plain,
+and carries no information beyond `edge_endpoints`.
+"""
+function tagged_arcs(t::IdealTriangulation)
+    out = [TaggedArc(t.edge_endpoints[k], (:plain, :plain)) for k in diagonals(t)]
+    for s in selffolded_triangles(t)
+        r, ℓ = selffold_arcs(t, s)
+        e = t.edge_endpoints[r]
+        p = findfirst(i -> t.marked_is_puncture[e[i]], (1, 2))
+        p === nothing && throw(NonGenericGraph(
+            "the radius $r of self-folded triangle $s has no puncture endpoint"))
+        out[ℓ] = TaggedArc(e, ntuple(i -> i == p ? :notched : :plain, 2))
+    end
+    out
 end
 
 # -- flips ---------------------------------------------------------------------------
@@ -797,6 +961,13 @@ pair (the strip re-forms between the same two turning points), while two of the 
 four sides swap which turning point borders them. `theta` is carried through unchanged -
 it records where the triangulation was traced, not where the flip put it. Use
 [`canonical_reorder`](@ref) to compare the result with a freshly traced triangulation.
+
+A flip may create or destroy a **self-folded triangle** (a puncture dropping to or
+rising from valence 1) - both are ordinary ideal flips. The one edge with no ideal
+flip is the *radius* of a self-folded triangle, which borders its one triangle on both
+sides; `flip` refuses it and names the enclosing loop, whose flip is the move that
+undoes the self-fold. Flipping the radius is a *tagged* flip against its own notched
+copy ([`tagged_arcs`](@ref)), and it leaves the ideal world that a Stokes graph draws.
 """
 function flip(t::IdealTriangulation, k::Integer; direction::Integer = 1)
     (1 ≤ k ≤ length(t.edge_endpoints) && t.is_diagonal[k]) || throw(
@@ -805,6 +976,15 @@ function flip(t::IdealTriangulation, k::Integer; direction::Integer = 1)
             "$(diagonals(t)))"))
     direction in (-1, 1) || throw(
         Resurgence.InvalidArgument("flip: direction must be ±1, got $direction"))
+
+    sf = findfirst(s -> is_selffolded(t, s) && k == selffold_arcs(t, s)[1],
+                   eachindex(t.triangles))
+    sf === nothing || throw(NonGenericGraph(
+        "diagonal $k is the radius of the self-folded triangle $sf, which has no " *
+        "ideal flip - it borders that one triangle on both sides. In the tagged " *
+        "world ([FST08]) it flips against its own notched copy, an arc no Stokes " *
+        "graph draws; flip the enclosing loop $(selffold_arcs(t, sf)[2]) instead, " *
+        "which is the move that undoes the self-fold"))
 
     adj = findall(tri -> k in tri, t.triangles)
     length(adj) == 2 || throw(NonGenericGraph(
@@ -837,7 +1017,6 @@ function flip(t::IdealTriangulation, k::Integer; direction::Integer = 1)
     endpoints[k] = (min(p, q), max(p, q))
 
     # the two new triangles, counterclockwise: (u, p, q) and (p, v, q)
-    rotate(e) = argmin(collect(e)) - 1
     rot(e, shift) = ntuple(i -> e[mod1(i + shift, 3)], 3)
     triangles = copy(t.triangles)
     corners = copy(t.triangle_corners)
@@ -848,21 +1027,16 @@ function flip(t::IdealTriangulation, k::Integer; direction::Integer = 1)
     # senses by `canonical_reorder(flip(t, k; direction)) == t′` against a re-traced
     # neighbouring chamber, at every wall of the cubic/quartic/quintic fixtures.
     a_slot, b_slot = direction == 1 ? (s1, s2) : (s2, s1)
-    sa = rotate((e_up, k, e_qu))
+    sa = _canonical_rotation((e_up, k, e_qu), (u, p, q))
     triangles[a_slot] = rot((e_up, k, e_qu), sa)
     corners[a_slot] = rot((u, p, q), sa)
-    sb = rotate((e_pv, e_vq, k))
+    sb = _canonical_rotation((e_pv, e_vq, k), (p, v, q))
     triangles[b_slot] = rot((e_pv, e_vq, k), sb)
     corners[b_slot] = rot((p, v, q), sb)
     # A flip that lowers a puncture's valence to 1 produces a self-folded triangle,
-    # which this layer cannot represent (see `sector_index`), so refuse it here rather
-    # than hand back a triangle with a repeated edge.
-    for (s, tri) in enumerate(triangles)
-        allunique(tri) || throw(NonGenericGraph(
-            "flipping diagonal $k makes triangle $s self-folded (its edges are " *
-            "$(tri)): the puncture it wraps would have valence 1, which needs a " *
-            "tagged triangulation ([FST08])"))
-    end
+    # and one that raises it to 2 removes one. Both are ordinary ideal flips and both
+    # come out of the rules above unchanged - the u-side triangle simply keeps the
+    # radius that the v-side triangle also keeps.
     tp_pair = _diagonal_tp_pairs(endpoints, t.is_diagonal, triangles, t.triangle_tp)
 
     IdealTriangulation(t.n_marked, endpoints, t.is_diagonal, triangles, t.triangle_tp,
@@ -870,14 +1044,20 @@ function flip(t::IdealTriangulation, k::Integer; direction::Integer = 1)
                        t.marked_is_puncture)
 end
 
-# a diagonal's turning-point pair = the turning points of the two triangles it borders
+# A diagonal's turning-point pair = the turning points of the two triangles it borders,
+# counted with multiplicity: the radius of a self-folded triangle borders that one
+# triangle twice, so its pair is (s, s) - exactly what `_build_decomposition` records.
 function _diagonal_tp_pairs(endpoints, is_diagonal, triangles, triangle_tp)
     pairs = Tuple{Int,Int}[]
     for e in eachindex(endpoints)
         is_diagonal[e] || continue
-        tps = sort!([triangle_tp[s] for s in eachindex(triangles) if e in triangles[s]])
+        tps = Int[]
+        for s in eachindex(triangles), _ in 1:count(==(e), triangles[s])
+            push!(tps, triangle_tp[s])
+        end
+        sort!(tps)
         length(tps) == 2 || throw(NonGenericGraph(
-            "diagonal $e borders $(length(tps)) triangles, expected 2"))
+            "diagonal $e borders $(length(tps)) triangle sides, expected 2"))
         push!(pairs, (tps[1], tps[2]))
     end
     pairs
@@ -912,7 +1092,7 @@ function canonical_reorder(t::IdealTriangulation)
     corners = similar(t.triangle_corners)
     for s in eachindex(t.triangles)
         e = map(x -> new_id[x], collect(t.triangles[s]))
-        shift = argmin(e) - 1
+        shift = _canonical_rotation(e, t.triangle_corners[s])
         triangles[s] = ntuple(i -> e[mod1(i + shift, 3)], 3)
         corners[s] = ntuple(i -> t.triangle_corners[s][mod1(i + shift, 3)], 3)
     end

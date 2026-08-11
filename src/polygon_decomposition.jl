@@ -200,7 +200,7 @@ function _refine(d::PolygonDecomposition, choice::Vector{Vector{NTuple{3,Int}}})
         for (i, j, k) in tris
             e = (side(i, j), side(j, k), side(k, i))
             c = (cs[i], cs[j], cs[k])
-            shift = argmin(collect(e)) - 1      # the canonical rotation of the walk
+            shift = _canonical_rotation(e, c)   # the canonical rotation of the walk
             push!(triangles, ntuple(x -> e[mod1(x + shift, 3)], 3))
             push!(corners, ntuple(x -> c[mod1(x + shift, 3)], 3))
             push!(triangle_tp, d.cell_tp[s])

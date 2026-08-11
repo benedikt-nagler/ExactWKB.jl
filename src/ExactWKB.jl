@@ -52,7 +52,8 @@ export voros_value, ddp_transform, verify_ddp, verify_ddp_mutation, ddp_seed,
 export IdealTriangulation, ideal_triangulation, triangulation_quiver, n_diagonals,
        diagonals, n_marked_points, n_boundaries, infinite_lines, boundary_lines,
        ray_exit_angles, flip, canonical_reorder, diagonal_core_paths,
-       puncture_valence
+       puncture_valence, selffolded_triangles, is_selffolded, selffold_arcs,
+       TaggedArc, tagged_arcs
 export PolygonDecomposition, polygon_decomposition, cells, cell_tp, cell_sizes,
        n_cells, is_triangulation, refinements, n_refinements
 export ChargeBasis, charge_basis, charge_contour, bridge_seed, n_charges,
