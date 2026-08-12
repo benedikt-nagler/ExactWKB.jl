@@ -37,7 +37,8 @@ export RationalProblem, q_numerator, poles, pole_orders, n_finite_poles,
        RingDomainWall, ring_domain_walls, pole_index
 export TurningPoint, turning_points, simple_turning_points, location, order, is_simple
 export WKBExpansion, wkb_expansion, s_odd_terms, evaluate_s_odd, even_odd_residual
-export period_integral, wkb_period, encircling_contour
+export WKBDerivative, wkb_derivative
+export period_integral, wkb_period, encircling_contour, period_derivative
 export VorosSymbol, voros_symbol, classical_period, quantum_series, full_series
 export WeberModel, weber_model, weber_problem, weber_index, merging_period,
        weber_voros_series, weber_voros_coefficient, weber_voros_sum, weber_log_gamma,

@@ -19,6 +19,25 @@ function _riccati_residual(w, z0)
     maximum(abs, rc[1:(ExactWKB.order(w))])
 end
 
+# The same substitution for the differentiated Riccati equation: with ∂Q = D,
+# S² + S′ = ħ⁻²Q differentiates to 2S·∂S + (∂S)′ = ħ⁻²·D. Residual over the same
+# safely-determined prefix.
+function _driccati_residual(w, dw, z0)
+    z = Complex{BigFloat}(z0)
+    Qz = w.prob(z); u = sqrt(Qz)
+    ev(t) = ExactWKB._eval_term(t, z, Qz, u)
+    ms = -1:ExactWKB.order(w)
+    S = FormalSeries([ev(ExactWKB._s_term(w, m)) for m in ms], :ħ; power_offset = -1 // 1)
+    dS = FormalSeries([ev(ExactWKB._s_term(dw, m)) for m in ms], :ħ; power_offset = -1 // 1)
+    dSp = FormalSeries(
+        [ev(ExactWKB._deriv_term(ExactWKB._s_term(dw, m), w.Q, w.Qp, w.br)) for m in ms],
+        :ħ; power_offset = -1 // 1)
+    resid = 2 * (S * dS) + dSp                # offset -2; ħ^{-2} coeff should be D(z0)
+    rc = coefficients(resid)
+    rc[1] -= ExactWKB._poly_eval(dw.D, z)
+    maximum(abs, rc[1:(ExactWKB.order(w))])
+end
+
 @testset "wkb_recursion" begin
     airy = SchrodingerProblem([0, 1])   # Q = z
 
@@ -88,5 +107,52 @@ end
         @test_throws Resurgence.InvalidArgument wkb_expansion(
             SchrodingerProblem([0.0, 1.0]); arithmetic = :exact)
         @test_throws Resurgence.InvalidArgument wkb_expansion(airy; arithmetic = :nonsense)
+    end
+
+    @testset "parameter derivatives" begin
+        # The oracle for the whole derivative tower at once: differentiate the Riccati
+        # equation itself. S² + S′ = ħ⁻²Q  ⟹  2S·∂S + (∂S)′ = ħ⁻²·D. Nothing about the
+        # numerics enters - if the differentiated recursion is right, the residual is
+        # zero at every ħ power the truncation determines.
+        quartic = SchrodingerProblem([0 // 1, 0 // 1, -4 // 1, 0 // 1, 1 // 1];
+                                     energy = -2 // 1)
+        for (prob, wrt, idx) in ((airy, :energy, 0), (airy, :coefficient, 1),
+                                 (quartic, :energy, 0), (quartic, :coefficient, 0),
+                                 (quartic, :coefficient, 3))
+            w = wkb_expansion(prob; order = 6)
+            dw = wkb_derivative(w; wrt, index = idx)
+            @test _driccati_residual(w, dw, 0.4 + 1.1im) < 1e-20
+        end
+
+        @testset "∂/∂E = −∂/∂v₀ (Q = V − E)" begin
+            w = wkb_expansion(quartic; order = 6)
+            dE = wkb_derivative(w; wrt = :energy)
+            d0 = wkb_derivative(w; wrt = :coefficient, index = 0)
+            for m in -1:6
+                a, b = ExactWKB._s_term(dE, m), ExactWKB._s_term(d0, m)
+                @test a.q_pow == b.q_pow && a.sqrt_pow == b.sqrt_pow
+                @test ExactWKB._numerator_coeffs(a) == -ExactWKB._numerator_coeffs(b)
+            end
+        end
+
+        @testset "shape invariants" begin
+            w = wkb_expansion(quartic; order = 6)
+            dw = wkb_derivative(w; wrt = :energy)
+            for m in -1:6
+                s, ds = ExactWKB._s_term(w, m), ExactWKB._s_term(dw, m)
+                @test ds.sqrt_pow == s.sqrt_pow      # ∂ preserves the √Q parity
+                @test ds.sqrt_pow == mod(m, 2)
+            end
+            @test ExactWKB.order(dw) == ExactWKB.order(w)
+        end
+
+        @testset "argument checks" begin
+            w = wkb_expansion(quartic; order = 2)
+            @test_throws Resurgence.InvalidArgument wkb_derivative(w; wrt = :nonsense)
+            @test_throws Resurgence.InvalidArgument wkb_derivative(
+                w; wrt = :coefficient, index = -1)
+            @test_throws Resurgence.InvalidArgument wkb_derivative(
+                w; wrt = :coefficient, index = 5)   # V has degree 4
+        end
     end
 end

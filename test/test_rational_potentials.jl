@@ -214,6 +214,51 @@ import ClusterAlgebras
         @test ExactWKB.mass(sads[1]) ≈
               π * abs(sw_periods(SeibergWittenSU2(Λ = 1.0), 3.0).a_D) rtol = 1e-7
         @test abs(ExactWKB.theta(sads[1])) < 1e-9
+
+        # (6) the u-DERIVATIVES of the same two periods, differentiated under the
+        # integral sign at frozen contour. ∂_u Q̃ = 1/(4w²), and a closed cycle's period
+        # does not depend on its contour, so nothing has to track the moving turning
+        # points. Three independent routes have to land on one number: the closed-form
+        # elliptic K (`sw_period_derivatives`), the Picard-Fuchs transport
+        # (`continue_periods`), and this quadrature.
+        dQdu(w) = 1 / (4 * w^2)
+        for (Λ, u) in ((1.0, 3.0), (1.2, 5.0), (1.0, 10.0), (0.7, 1.5))
+            prob = mathieu_problem(Λ, u)
+            zs = location.(turning_points(prob))
+            m = 0.4 * min(abs(zs[1]), abs(zs[2] - zs[1]) / 2)
+            ct = encircling_contour(zs[1], zs[2]; margin = m, n = 256)
+            da = period_derivative(prob, circle, dQdu) / (im * π)
+            daD = -period_derivative(prob, ct, dQdu) / (im * π)
+            ref = sw_period_derivatives(SeibergWittenSU2(Λ = Λ), u)
+            @test da ≈ ref.da atol = 1e-12
+            @test daD ≈ ref.da_D atol = 1e-12
+        end
+
+        # the Picard-Fuchs route, transported along a path that leaves the real axis
+        cp = continue_periods(SeibergWittenSU2(Λ = 1.0),
+                              [3.0 + 0.0im, 4.0 + 0.5im, 5.0 + 0.0im])
+        p5 = mathieu_problem(1.0, 5.0)
+        z5 = location.(turning_points(p5))
+        ct5 = encircling_contour(z5[1], z5[2];
+                                 margin = 0.4 * min(abs(z5[1]), abs(z5[2] - z5[1]) / 2),
+                                 n = 256)
+        @test cp.da ≈ period_derivative(p5, circle, dQdu) / (im * π) atol = 1e-10
+        @test cp.da_D ≈ -period_derivative(p5, ct5, dQdu) / (im * π) atol = 1e-10
+
+        # Cauchy-Riemann: Z is holomorphic in u, so the real and imaginary difference
+        # quotients must give the same derivative. Taken on the electric cycle, whose
+        # first vertex w = 1 has Q̃ = (u − 2Λ²)/4 > 0 - the magnetic contour starts where
+        # arg Q̃ ≈ π, and a finite difference there flips the √Q branch. That fragility
+        # is the finite difference's, not the derivative's.
+        let Λ = 1.0, u = 3.0, h = 1e-5
+            ex = period_derivative(mathieu_problem(Λ, u), circle, dQdu)
+            fre = (period_integral(mathieu_problem(Λ, u + h), circle) -
+                   period_integral(mathieu_problem(Λ, u - h), circle)) / (2h)
+            fim = (period_integral(mathieu_problem(Λ, u + im * h), circle) -
+                   period_integral(mathieu_problem(Λ, u - im * h), circle)) / (2im * h)
+            @test ex ≈ fre atol = 1e-9
+            @test ex ≈ fim atol = 1e-9
+        end
     end
 
     @testset "the charge lattice on the annulus" begin

@@ -64,21 +64,28 @@ The Voros symbol of the cycle `contour`: computes the quantum periods
 `atol`, default scaled to the period magnitudes) and stored as exact zero. `rtol`
 passes through to the quadrature of each period (default `√eps` of the working
 float - override to trade precision for speed in energy sweeps).
+
+Given a [`WKBDerivative`](@ref) instead of a `WKBExpansion`, the same construction on
+``∂S_m`` returns the **derivative** symbol ``∂_λ v_{-1} ħ^{-1} + ∂_λ v₁ ħ + …``. Since
+``∂_λ`` commutes with Borel summation, that object is summed by the ordinary
+`voros_value` path to give ``∂_λ \\log V`` - the derivative series is summed, rather
+than the summation being differentiated. The even periods vanish for every `λ`, so
+their derivatives vanish too and the same sanity check applies.
 """
-function voros_symbol(w::WKBExpansion, contour::AbstractVector; closed::Bool = true,
-                      atol = nothing, rtol = nothing)
-    w.order ≥ 1 ||
+function voros_symbol(w::Union{WKBExpansion,WKBDerivative}, contour::AbstractVector;
+                      closed::Bool = true, atol = nothing, rtol = nothing)
+    order(w) ≥ 1 ||
         throw(Resurgence.InvalidArgument("voros_symbol needs a WKBExpansion of order ≥ 1"))
     classical = wkb_period(w, contour, -1; closed, rtol)
     F = typeof(real(classical))
     rt = rtol === nothing ? sqrt(eps(F)) : F(rtol)
-    v = Vector{Complex{F}}(undef, w.order)
+    v = Vector{Complex{F}}(undef, order(w))
     # Odd periods first, tracking their scale. A pure relative quadrature target is
     # pathological on a cancelling integral (it exhausts maxevals chasing digits of
     # zero - as the odd periods do whenever the series truncates, e.g. the harmonic
     # oscillator), so each also gets an absolute floor at the classical-period scale.
     oddscale = abs(classical)
-    for m in 1:2:w.order
+    for m in 1:2:order(w)
         v[m] = wkb_period(w, contour, m; closed, rtol = rt, atol = rt * (1 + abs(classical)))
         oddscale = max(oddscale, abs(v[m]))
     end
@@ -89,7 +96,7 @@ function voros_symbol(w::WKBExpansion, contour::AbstractVector; closed::Bool = t
     # quadrature burn `maxevals` resolving zero to a hopeless precision (the barrier
     # cycle of a shallow double well, 25 s → 0.1 s once this floor is right).
     evtol = F(1e-3) * (1 + oddscale)
-    for m in 2:2:w.order
+    for m in 2:2:order(w)
         # Capped eval budget: the high-order 1/Qᵏ integrand has enormous peaks near
         # the turning points, and adaptive quadrature keeps refining them long past
         # the point where the (cancelling, ≈ 0) integral is resolved to `evtol`. A
@@ -105,7 +112,7 @@ function voros_symbol(w::WKBExpansion, contour::AbstractVector; closed::Bool = t
     # high-order 1/Qᵏ integrands are numerically stiff near the turning points.
     tol = atol === nothing ?
           F(1e-3) * (1 + abs(classical) + maximum(abs, v; init = zero(F))) : F(atol)
-    for m in 2:2:w.order
+    for m in 2:2:order(w)
         abs(v[m]) ≤ tol || throw(Resurgence.InvalidArgument(
             "even quantum period v_$m ≈ $(v[m]) is not ≈ 0 (|·| > $tol); check the " *
             "contour / branch"))

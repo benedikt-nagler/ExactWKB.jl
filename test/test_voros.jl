@@ -57,10 +57,36 @@ using Resurgence: FormalSeries, coefficients, power_offset, borel, pade, poles
         @test poles(r) isa AbstractVector
     end
 
+    @testset "the derivative Voros symbol" begin
+        # ∂_λ commutes with Borel summation, so the derivative series can be pushed
+        # through the ordinary summation path: `_log_voros` of the derivative symbol is
+        # ∂_λ log V. Oracle: a finite difference of the summed log at frozen contour.
+        prob = SchrodingerProblem([0 // 1, 0 // 1, -4 // 1, 0 // 1, 1 // 1];
+                                  energy = -2 // 1)
+        E0, ħ = -2 // 1, 0.15
+        c = spectral_cycles(prob, E0)[1].contour
+        w = wkb_expansion(prob; order = 8)
+        dvs = voros_symbol(wkb_derivative(w), c)
+
+        # the classical slot is the period derivative, and the even slots still vanish
+        @test classical_period(dvs) ≈ period_derivative(prob, c) rtol = 1e-20
+        @test all(iszero, coefficients(quantum_series(dvs))[2:2:end])
+        @test any(!iszero, coefficients(quantum_series(dvs))[1:2:end])
+
+        h = 1e-6
+        lp = ExactWKB._log_voros(
+            voros_symbol(wkb_expansion(with_energy(prob, E0 + h); order = 8), c), ħ)
+        lm = ExactWKB._log_voros(
+            voros_symbol(wkb_expansion(with_energy(prob, E0 - h); order = 8), c), ħ)
+        @test ExactWKB._log_voros(dvs, ħ) ≈ (lp - lm) / (2h) rtol = 1e-6
+    end
+
     @testset "argument checks" begin
         harm = SchrodingerProblem([0.0, 0.0, 1.0]; energy = 1.0)
         w0 = wkb_expansion(harm; order = 0)
         @test_throws Resurgence.InvalidArgument voros_symbol(
             w0, encircling_contour(turning_points(harm)...))
+        @test_throws Resurgence.InvalidArgument voros_symbol(
+            wkb_derivative(w0), encircling_contour(turning_points(harm)...))
     end
 end

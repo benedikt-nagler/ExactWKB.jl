@@ -38,12 +38,18 @@ end
 # scalar (rational) multiple, lifted into the base ring
 _scale_term(a::RiccatiTerm, r, br) = RiccatiTerm(a.num * br(r), a.q_pow, a.sqrt_pow)
 
-# d/dz [num·u^ε/Q^k] = [num′·Q + (ε/2 − k)·num·Q′] · u^ε / Q^{k+1}
-function _deriv_term(a::RiccatiTerm, Q, Qp, br)
+# ∂[num·u^ε/Q^k] = [∂num·Q + (ε/2 − k)·num·∂Q] · u^ε / Q^{k+1}, for any derivation ∂
+# that acts on Q through ∂Q and on the numerator through ∂num. Both derivations we
+# need have this shape: ∂ = d/dz with (num′, Q′), and ∂ = ∂_λ for a parameter entering
+# only through Q, with (∂_λnum, D). Parity is preserved; the denominator gains one Q.
+function _derivation_term(a::RiccatiTerm, dnum, dQ, Q, br)
     ε, k = a.sqrt_pow, a.q_pow
-    new_num = AA.derivative(a.num) * Q + a.num * Qp * br(Rational(ε, 2) - k)
-    RiccatiTerm(new_num, k + 1, ε)
+    RiccatiTerm(dnum * Q + a.num * dQ * br(Rational(ε, 2) - k), k + 1, ε)
 end
+
+# d/dz [num·u^ε/Q^k]
+_deriv_term(a::RiccatiTerm, Q, Qp, br) =
+    _derivation_term(a, AA.derivative(a.num), Qp, Q, br)
 
 # add two terms of equal parity over the common denominator Q^{max q_pow}
 function _add_term(a::RiccatiTerm, b::RiccatiTerm, Q)
@@ -130,9 +136,96 @@ function wkb_expansion(prob::SchrodingerProblem; order::Integer = 10,
     WKBExpansion{P}(prob, order, mode, Q, Qp, br, s)
 end
 
+# -- parameter derivatives ---------------------------------------------------------
+#
+# A parameter λ of the potential enters the Riccati recursion only through Q, so with
+# D = ∂_λ Q the whole derivative expansion follows from the same four term operations.
+# Differentiating the recursion (rather than the code that evaluates it) keeps the
+# result exact and keeps the moving turning points out of it entirely: ∂_λ S_m is again
+# a RiccatiTerm of the same parity, so `wkb_period` integrates it unchanged.
+#
+#   ∂S₋₁ = D/(2u),        ∂S₀ = [Q′D − D′Q] / (4Q²)
+#   ∂S_{m+1} = −∂A_m/(2u) − S_{m+1}·D/(2Q),   A_m = Σ_{i+j=m} S_i S_j + S_m′
+#
+# The second term of the last line is ∂(1/2u) = −D/(4Qu) pulled back onto the stored
+# S_{m+1}, which is why A_m itself never has to be recomputed here.
+
+"""
+    WKBDerivative{P}
+
+The derivative of a [`WKBExpansion`](@ref) with respect to one parameter of the
+potential: holds `∂S₋₁ … ∂S_order` as internal `RiccatiTerm`s over the same ring.
+Build with [`wkb_derivative`](@ref); [`wkb_period`](@ref) and
+[`voros_symbol`](@ref) then integrate it exactly as they do a `WKBExpansion`.
+"""
+struct WKBDerivative{P}
+    w::WKBExpansion{P}
+    wrt::Symbol
+    index::Int
+    D::P                          # ∂_λ Q
+    ds::Vector{RiccatiTerm{P}}    # ds[m + 2] == ∂_λ S_m, for m in -1:order
+end
+
+"""
+    wkb_derivative(w::WKBExpansion; wrt = :energy, index = 0) -> WKBDerivative
+
+Differentiate the Riccati coefficients of `w` with respect to one parameter of the
+potential: `wrt = :energy` gives `∂/∂E` (so `∂Q = −1`), and `wrt = :coefficient` with
+`index = k` gives `∂/∂v_k`, the coefficient of `z^k` in `V` (so `∂Q = z^k`).
+
+Exact: the recursion is differentiated, not the code that evaluates it, so each
+`∂S_m` is again a rational function of the same shape and is integrated by
+[`wkb_period`](@ref) over the same contour and branch table as `S_m`.
+"""
+function wkb_derivative(w::WKBExpansion{P}; wrt::Symbol = :energy,
+                        index::Integer = 0) where {P}
+    R = AA.parent(w.Q)
+    br = w.br
+    if wrt === :energy
+        D = -one(R)
+        index = -1
+    elseif wrt === :coefficient
+        dmax = length(q_coefficients(w.prob)) - 1
+        0 ≤ index ≤ dmax || throw(Resurgence.InvalidArgument(
+            "index must be in 0:$dmax (the powers of z carried by V), got $index"))
+        D = AA.gen(R)^index
+    else
+        throw(Resurgence.InvalidArgument(
+            "wrt must be :energy or :coefficient, got :$wrt"))
+    end
+    Dp = AA.derivative(D)
+    Q, Qp, order = w.Q, w.Qp, w.order
+
+    ds = Vector{RiccatiTerm{P}}(undef, order + 2)
+    ds[1] = _derivation_term(w.s[1], zero(R), D, Q, br)   # ∂S₋₁ = D/(2u)
+    ds[2] = _derivation_term(w.s[2], Dp * br(-1 // 4), D, Q, br)  # ∂S₀
+    Sm(m) = w.s[m + 2]
+    dSm(m) = ds[m + 2]
+    for m in 0:(order - 1)
+        # ∂A_m = Σ_{i+j=m} (∂S_i·S_j + S_i·∂S_j) + (∂S_m)′
+        acc = _add_term(_mul_term(dSm(0), Sm(m)), _mul_term(Sm(0), dSm(m)), Q)
+        for i in 1:m
+            acc = _add_term(acc, _mul_term(dSm(i), Sm(m - i)), Q)
+            acc = _add_term(acc, _mul_term(Sm(i), dSm(m - i)), Q)
+        end
+        acc = _add_term(acc, _deriv_term(dSm(m), Q, Qp, br), Q)
+        main = _div_2u_term(_scale_term(acc, -1, br), br)       # −∂A_m/(2u)
+        s1 = Sm(m + 1)
+        corr = RiccatiTerm(s1.num * D * br(-1 // 2), s1.q_pow + 1, s1.sqrt_pow)
+        ds[m + 3] = _add_term(main, corr, Q)
+    end
+    WKBDerivative{P}(w, wrt, index, D, ds)
+end
+
+order(dw::WKBDerivative) = dw.w.order
+
 # -- internal accessors (used by periods.jl / voros.jl) ----------------------------
 
 _s_term(w::WKBExpansion, m::Integer) = w.s[m + 2]
+_s_term(dw::WKBDerivative, m::Integer) = dw.ds[m + 2]
+
+_wkb_prob(w::WKBExpansion) = w.prob
+_wkb_prob(dw::WKBDerivative) = dw.w.prob
 
 # numerator coefficients of S_m as plain Julia numbers (ascending), AA-free
 function _numerator_coeffs(term::RiccatiTerm)

@@ -4,6 +4,21 @@
 # isolated here: an adaptive pre-walk lays down nodes dense enough that arg Q never
 # jumps by more than ~π/2 between neighbours, and every quadrature sample unwraps
 # against the nearest node - no discrete sign choices inside the integrand.
+#
+# ── convention ledger ──────────────────────────────────────────────────────────────
+#
+# 1. Parameter derivatives (`period_derivative`, `wkb_period` of a `WKBDerivative`) are
+#    taken **at frozen contour**: the vertices, the branch table and the quadrature
+#    breakpoints are those of the base point, and only the integrand is differentiated.
+#    For a CLOSED cycle this is exact, not an approximation - the period depends on the
+#    contour only through its homology class, so the moving turning points contribute
+#    nothing and there is no boundary term. Pinned by `sw_period_derivatives` (closed
+#    form) and `continue_periods` (Picard-Fuchs) agreeing with the frozen-contour
+#    quadrature, and by Cauchy-Riemann in the holomorphic direction.
+# 2. Consequently the derivative is **refused on an open contour**. On the
+#    turning-point-to-turning-point form the endpoints are branch points that move with
+#    the parameter, so a frozen contour drops a boundary term; `closed = false` is a
+#    usage error, not a supported mode.
 
 using QuadGK: quadgk
 
@@ -141,30 +156,44 @@ function period_integral(prob::AbstractSchrodingerProblem, contour::AbstractVect
     val
 end
 
+# Ledger item 2: a frozen contour is exact only around a closed cycle.
+_require_closed_for_derivative(::WKBExpansion, closed) = nothing
+_require_closed_for_derivative(::WKBDerivative, closed) =
+    closed || throw(ContourError(
+        "a parameter derivative is taken at frozen contour, which is exact only for a " *
+        "closed cycle; on an open contour the turning-point endpoints move with the " *
+        "parameter and the dropped boundary term is not small"))
+
 """
     wkb_period(w::WKBExpansion, contour, m; closed = true) -> Complex
+    wkb_period(dw::WKBDerivative, contour, m; closed = true) -> Complex
 
 The order-`m` quantum period ``∮ S_m\\,dz`` along `contour`, using the same √Q branch
 tracking as [`period_integral`](@ref). `m = -1` reproduces the classical period.
+
+Given a [`WKBDerivative`](@ref) instead, the same integral of ``∂S_m`` - that is,
+``∂_λ`` of the order-`m` period, taken **at frozen contour** (see the ledger above).
 """
-function wkb_period(w::WKBExpansion, contour::AbstractVector, m::Integer;
-                    closed::Bool = true, rtol = nothing, atol = nothing,
+function wkb_period(w::Union{WKBExpansion,WKBDerivative}, contour::AbstractVector,
+                    m::Integer; closed::Bool = true, rtol = nothing, atol = nothing,
                     maxevals::Integer = 10^6)
-    -1 ≤ m ≤ w.order ||
-        throw(Resurgence.InvalidArgument("m must be in -1:$(w.order), got $m"))
+    -1 ≤ m ≤ order(w) ||
+        throw(Resurgence.InvalidArgument("m must be in -1:$(order(w)), got $m"))
+    _require_closed_for_derivative(w, closed)
+    prob = _wkb_prob(w)
     F = _contour_float(_as_complex.(contour))
     verts = Complex{F}[_as_complex(z) for z in contour]
     closed && push!(verts, verts[1])
     K = length(verts) - 1
-    atol = _period_atol(w.prob, verts, F)
-    S, PA, UW, Δ = _branch_table(w.prob, verts, K, atol)
+    atol = _period_atol(prob, verts, F)
+    S, PA, UW, Δ = _branch_table(prob, verts, K, atol)
     if closed && isodd(round(Int, Δ / (2π)))
         throw(ContourError("closed contour encloses an odd number of turning points; " *
                            "√Q is not single-valued around it (branch ambiguity)"))
     end
     term = _s_term(w, m)
     function f(s)
-        u, z, Q, dz = _sqrt_Q(w.prob, s, S, PA, UW, verts, K)
+        u, z, Q, dz = _sqrt_Q(prob, s, S, PA, UW, verts, K)
         _eval_term(term, Complex{F}(z), Q, u) * dz
     end
     rt = rtol === nothing ? sqrt(eps(F)) : F(rtol)
@@ -173,6 +202,72 @@ function wkb_period(w::WKBExpansion, contour::AbstractVector, m::Integer;
                     rtol = rt, atol = at, maxevals = maxevals,
                     order = _quad_order(F))
     val
+end
+
+"""
+    period_derivative(prob::AbstractSchrodingerProblem, contour, dQ; closed = true)
+        -> Complex
+
+``∂_λ`` of the classical period ``∮√Q\\,dz`` along `contour`, for any parameter `λ`
+entering only through `Q`: `dQ` is a callable giving ``∂_λ Q(z)``, and the integral is
+``∮ ∂_λQ / (2√Q)\\,dz`` over the **same** contour and branch table as
+[`period_integral`](@ref).
+
+Frozen contour, so this is exact only for a **closed** cycle - see the ledger at the
+top of this file. `dQ = z -> -1` is ``∂/∂E`` for a [`SchrodingerProblem`](@ref);
+`dQ = z -> z^k` is ``∂/∂v_k``. Unlike [`wkb_derivative`](@ref) this needs no Riccati
+algebra, so it also covers a [`RationalProblem`](@ref), where `λ` is whichever
+parameter the caller differentiates `Q` by.
+"""
+function period_derivative(prob::AbstractSchrodingerProblem, contour::AbstractVector,
+                           dQ; closed::Bool = true, rtol = nothing,
+                           maxevals::Integer = 10^6)
+    closed || throw(ContourError(
+        "a parameter derivative is taken at frozen contour, which is exact only for a " *
+        "closed cycle; on an open contour the turning-point endpoints move with the " *
+        "parameter and the dropped boundary term is not small"))
+    F = _contour_float(_as_complex.(contour))
+    verts = Complex{F}[_as_complex(z) for z in contour]
+    closed && push!(verts, verts[1])
+    K = length(verts) - 1
+    K ≥ 1 || throw(ContourError("contour needs ≥ 2 vertices"))
+    atol = _period_atol(prob, verts, F)
+    S, PA, UW, Δ = _branch_table(prob, verts, K, atol)
+    if closed && isodd(round(Int, Δ / (2π)))
+        throw(ContourError("closed contour encloses an odd number of turning points; " *
+                           "√Q is not single-valued around it (branch ambiguity)"))
+    end
+    function f(s)
+        u, z, _, dz = _sqrt_Q(prob, s, S, PA, UW, verts, K)
+        dQ(z) / (2 * u) * dz
+    end
+    rt = rtol === nothing ? sqrt(eps(F)) : F(rtol)
+    val, _ = quadgk(f, range(zero(F), one(F), length = K + 1)...;
+                    rtol = rt, maxevals = maxevals, order = _quad_order(F))
+    val
+end
+
+"""
+    period_derivative(prob::SchrodingerProblem, contour; wrt = :energy, index = 0)
+        -> Complex
+
+``∂/∂E`` (`wrt = :energy`) or ``∂/∂v_k`` (`wrt = :coefficient`, `index = k`) of the
+classical period, i.e. the two `dQ` a polynomial potential supplies itself.
+"""
+function period_derivative(prob::SchrodingerProblem, contour::AbstractVector;
+                           wrt::Symbol = :energy, index::Integer = 0, kwargs...)
+    dQ = if wrt === :energy
+        _ -> -1
+    elseif wrt === :coefficient
+        dmax = length(q_coefficients(prob)) - 1
+        0 ≤ index ≤ dmax || throw(Resurgence.InvalidArgument(
+            "index must be in 0:$dmax (the powers of z carried by V), got $index"))
+        z -> z^index
+    else
+        throw(Resurgence.InvalidArgument(
+            "wrt must be :energy or :coefficient, got :$wrt"))
+    end
+    period_derivative(prob, contour, dQ; kwargs...)
 end
 
 """
