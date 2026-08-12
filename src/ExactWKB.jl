@@ -28,7 +28,8 @@ export ExactWKBError, InvalidPotential, UnsupportedTurningPoint, ContourError,
        TracingFailed, NonGenericGraph, ChamberError, CoalescentTurningPoints,
        QuantizationError, TBAError, PeriodError
 export SpectralCycle, spectral_cycles, uniform_cycles, quantum_period, kind, endpoints
-export quantization_condition, spectral_determinant, wkb_eigenvalue
+export quantization_condition, spectral_determinant, wkb_eigenvalue,
+       quantization_derivative, eigenvalue_sensitivity
 export perturbative_b, instanton_a, verify_zjj, energy_splitting
 export AbstractSchrodingerProblem, SchrodingerProblem, q_coefficients, energy, degree,
        variable, with_energy, q_derivative_at, q_taylor_at, asymptotic_directions

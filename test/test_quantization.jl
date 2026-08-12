@@ -198,6 +198,122 @@ import QuadGK
         @test maximum(εs) / minimum(εs) - 1 < 0.05
     end
 
+    @testset "exact derivatives of the condition" begin
+        # Against the central difference the Newton step used to take, at the FD's own
+        # error. All three branches, since each assembles the condition differently out
+        # of the same two summed multipliers.
+        function fd(prob, E, ħ, h; kwargs...)
+            (quantization_condition(prob, E + h, ħ; kwargs...) -
+             quantization_condition(prob, E - h, ħ; kwargs...)) / (2h)
+        end
+
+        @testset "single well" begin
+            ħ, h = 0.1, 1e-6
+            for E in (0.9, 1.2, 1.7)
+                ex = quantization_derivative(quart, E, ħ; n = 2, order = 6)
+                @test ex ≈ fd(quart, E, ħ, h; n = 2, order = 6) rtol = 1e-6
+            end
+        end
+
+        # Both parity branches involve the BARRIER cycle, whose ħ-series is the worst
+        # behaved object in the package at ħ = 0.25. There the two routes part company:
+        # the Padé approximant of the derivative series is not the derivative of the
+        # primal series' Padé approximant. Measured gap - order 4: 4e-10; order 6:
+        # 1.0e-4; order 8: 1.2e-3; order 10: 1.2e-5, while the derivative's own
+        # order-8-to-10 movement is 1.2e-3. So the disagreement never exceeds the
+        # resummation's own ambiguity, and at short series (order 4) where the two Padés
+        # coincide the agreement is at the finite difference's floor. Both facts are
+        # asserted, since the second is what shows the first is not a bug.
+        @testset "parity-factorized double well" begin
+            ħ, h = 0.25, 1e-6
+            for p in (1, -1), E in (0.3, 0.6)
+                kw4 = (n = 0, parity = p, order = 4)
+                @test quantization_derivative(dwell, E, ħ; kw4...) ≈
+                      fd(dwell, E, ħ, h; kw4...) rtol = 1e-8
+                kw8 = (n = 0, parity = p, order = 8)
+                @test quantization_derivative(dwell, E, ħ; kw8...) ≈
+                      fd(dwell, E, ħ, h; kw8...) rtol = 5e-3
+            end
+        end
+
+        @testset "uniform (Weber) branch" begin
+            ħ, h = 0.25, 1e-6
+            for p in (1, -1), E in (0.3, 0.6)
+                kw4 = (n = 0, parity = p, uniform = true, order = 4)
+                @test quantization_derivative(dwell, E, ħ; kw4...) ≈
+                      fd(dwell, E, ħ, h; kw4...) rtol = 1e-8
+                kw8 = (n = 0, parity = p, uniform = true, order = 8)
+                @test quantization_derivative(dwell, E, ħ; kw8...) ≈
+                      fd(dwell, E, ħ, h; kw8...) rtol = 5e-3
+            end
+        end
+
+        @testset "∂/∂v_k against a coefficient finite difference" begin
+            # V = z² + z⁴ is even, so ∂cond/∂v₁ and ∂cond/∂v₃ vanish identically. The
+            # exact route returns them as 1e-15; the finite difference returns 4e-9 of
+            # its own roundoff, which is why those two need an absolute comparison.
+            ħ, h, E = 0.1, 1e-6, 1.2
+            v = [0.0, 0.0, 1.0, 0.0, 1.0]
+            for k in 0:4
+                ex = quantization_derivative(SchrodingerProblem(v), E, ħ;
+                                             wrt = :coefficient, index = k,
+                                             n = 2, order = 6)
+                vp = copy(v); vp[k + 1] += h
+                vm = copy(v); vm[k + 1] -= h
+                num = (quantization_condition(SchrodingerProblem(vp), E, ħ; n = 2,
+                                              order = 6) -
+                       quantization_condition(SchrodingerProblem(vm), E, ħ; n = 2,
+                                              order = 6)) / (2h)
+                if isodd(k)
+                    @test abs(ex) < 1e-12
+                    @test abs(num) < 1e-7          # the finite difference's own floor
+                else
+                    @test ex ≈ num rtol = 1e-5
+                end
+            end
+        end
+
+        @testset "argument checks" begin
+            @test_throws Resurgence.InvalidArgument quantization_derivative(
+                quart, 1.0, 0.1; n = -1)
+            @test_throws Resurgence.InvalidArgument quantization_derivative(
+                quart, 1.0, 0.1; n = 0, wrt = :nonsense)
+            @test_throws Resurgence.InvalidArgument quantization_derivative(
+                quart, 1.0, 0.1; n = 0, wrt = :coefficient, index = 9)
+        end
+    end
+
+    @testset "eigenvalue sensitivity (implicit function theorem)" begin
+        # Closed form: for V = v₀ + v₁z + v₂z², completing the square gives
+        # E_n = v₀ − v₁²/(4v₂) + ħ√v₂(2n+1), so at v₁ = 0, v₂ = 1 the gradient is
+        # exactly (1, 0, ħ(2n+1)/2). Every step of the chain is pinned by this: the
+        # differentiated recursion, the summation, and the implicit function theorem.
+        for ħ in (0.2, 0.45), n in 0:2
+            s = eigenvalue_sensitivity(harm, n, ħ; order = 6)
+            @test s.E ≈ 2 * ħ * (n + 0.5) rtol = 1e-8
+            @test s.dE_dv[1] ≈ 1 rtol = 1e-7
+            @test abs(s.dE_dv[2]) < 1e-7
+            @test s.dE_dv[3] ≈ ħ * (2n + 1) / 2 rtol = 1e-6
+        end
+
+        # a non-degenerate potential, where the quantum corrections do not truncate:
+        # against a finite difference of `wkb_eigenvalue` itself
+        ħ, h = 0.1, 1e-5
+        v = [0.0, 0.0, 1.0, 0.0, 1.0]
+        s = eigenvalue_sensitivity(SchrodingerProblem(v), 2, ħ; order = 6)
+        @test !iszero(s.dcond_dE)
+        for k in 0:4
+            vp = copy(v); vp[k + 1] += h
+            vm = copy(v); vm[k + 1] -= h
+            num = (wkb_eigenvalue(SchrodingerProblem(vp), 2, ħ; order = 6) -
+                   wkb_eigenvalue(SchrodingerProblem(vm), 2, ħ; order = 6)) / (2h)
+            # odd k: zero by the potential's parity, so the finite difference is
+            # comparing against its own roundoff (≈2e-11) and only an atol is meaningful
+            isodd(k) ? (@test abs(s.dE_dv[k + 1]) < 1e-14) :
+                       (@test s.dE_dv[k + 1] ≈ num rtol = 1e-5)
+        end
+    end
+
     @testset "layout and argument errors" begin
         # the uniform condition is the parity-factorized one
         @test_throws Resurgence.InvalidArgument quantization_condition(
