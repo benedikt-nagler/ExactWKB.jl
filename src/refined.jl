@@ -238,7 +238,7 @@ The image of `ŷ^{γ_j}` under the quantum wall-crossing transformation at the w
 `truncation_degree` extra charge degrees.
 
 This is the `q`-deformation of the DDP jump. Its classical limit
-([`ClusterAlgebras.ks_classical_limit`](@ref)) is exactly
+(`ClusterAlgebras.ks_classical_limit`) is exactly
 `ŷ^{γ_j} (1 + ŷ^{γ_k})^{⟨γ_j,γ_k⟩}` - the factor `ddp_transform` applies to a
 Borel-summed Voros value, and the `y`-mutation `μ_k` of the bridge seed (ledger
 item 4).

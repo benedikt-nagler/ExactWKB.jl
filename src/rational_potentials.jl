@@ -180,6 +180,13 @@ The orders of the finite poles of `Q`, in the order of [`poles`](@ref).
 pole_orders(prob::RationalProblem) = copy(prob.pole_orders)
 pole_orders(::AbstractSchrodingerProblem) = Int[]
 
+"""
+    n_finite_poles(prob) -> Int
+
+The number of finite poles of `Q`, counted **without** multiplicity - the length of
+[`poles`](@ref), not the sum of [`pole_orders`](@ref). Zero for a problem with no finite
+poles, so this is the cheap test for whether a problem is polynomial in disguise.
+"""
 n_finite_poles(prob::RationalProblem) = length(prob.poles)
 
 """

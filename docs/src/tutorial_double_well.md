@@ -11,9 +11,9 @@ there forever; quantum mechanically it tunnels, and the two would-be ground stat
 even and an odd combination separated by a small energy gap ``\Delta E``. Measuring that gap is
 measuring the tunnelling rate.
 
-The trouble is that perturbation theory cannot see it. Expand the ground-state energy in powers
-of ``\hbar`` around either well and you get *the same series* for both members of the doublet -
-the gap is zero to all orders. It is exponentially small,
+Perturbation theory cannot see it. Expand the ground-state energy in powers of ``\hbar`` around
+either well and you get *the same series* for both members of the doublet, so the gap is zero to
+all orders. It is exponentially small,
 ``\Delta E \sim e^{-A/\hbar}``, and no finite order of an expansion in powers of ``\hbar``
 contains such a term.
 
@@ -21,33 +21,30 @@ So:
 
 > **How do you compute a quantity that vanishes to all orders of the only expansion you have?**
 
-The textbook answer is to add instantons by hand: find the classical tunnelling solution,
-compute its action ``A``, and multiply by a fluctuation determinant. That works, and it gives
-the leading behaviour. The exact-Wentzel-Kramers-Brillouin answer is better and more surprising:
-the perturbative series *already contains* the tunnelling information, in the pattern of its
-divergence, and both objects can be extracted from the same computation. The two series - the
-perturbative one and the instanton one - are not independent: they satisfy an exact differential
-relation.
+The textbook answer adds instantons by hand: find the classical tunnelling solution, compute
+its action ``A``, and multiply by a fluctuation determinant. That works and gives the leading
+behaviour. The exact-Wentzel-Kramers-Brillouin answer goes further: the perturbative series
+*already contains* the tunnelling information, in the pattern of its divergence, and both
+objects come out of the same computation. The perturbative series and the instanton series are
+not independent, but satisfy an exact differential relation.
 
 This tutorial computes the gap, checks it against the instanton estimate, and then verifies that
 relation. Along the way it shows what the tunnelling looks like as *geometry*: a line in the
 complex plane connecting two turning points.
 
-The connection to the rest of the package: this is the same
-[resurgence](https://en.wikipedia.org/wiki/Borel_summation) story as
-[The cubic, end to end](@ref) - divergent series, Borel plane, singularities at the actions of
-invisible objects - but here the payoff is a number a physicist would measure, and the
-"invisible object" is an instanton. The
-[Seiberg-Witten SU(2)](@ref) tutorial is the same structure again, one dimension up: the
-Mathieu potential is a periodic double well, and its two periods are the two series computed
-here.
+This is the same [resurgence](https://en.wikipedia.org/wiki/Borel_summation) story as
+[The cubic, end to end](@ref), with divergent series, a Borel plane and singularities at the
+actions of invisible objects, but here the result is a number a physicist would measure and the
+invisible object is an instanton. [Seiberg-Witten SU(2)](@ref) is the same structure one
+dimension up: the Mathieu potential is a periodic double well, and its two periods are the two
+series computed here.
 
 ## A convention check first
 
 Before trusting any of it, run the machinery on a problem whose answer is known exactly. For the
-harmonic oscillator ``V = z^2`` the Wentzel-Kramers-Brillouin series *truncates* - all higher
-corrections vanish identically - so the method must return ``E_n = 2\hbar(n+\tfrac12)`` exactly,
-not asymptotically:
+harmonic oscillator ``V = z^2`` the Wentzel-Kramers-Brillouin series *truncates*, since all
+higher corrections vanish identically, so the method must return
+``E_n = 2\hbar(n+\tfrac12)`` exactly and not asymptotically:
 
 ```julia-repl
 julia> using ExactWKB
@@ -60,11 +57,11 @@ julia> wkb_eigenvalue(harm, 0, 0.1; order = 6), wkb_eigenvalue(harm, 3, 0.1; ord
 (0.09999999999999994, 0.6999999999999995)
 ```
 
-Fifteen digits on both. Every sign, every factor of ``2\pi``, and the placement of the ``+\tfrac12``
-in the quantization condition is pinned by this one line. It is the cheapest possible test and
-the package runs it in its own test suite for exactly that reason.
+Fifteen digits on both. Every sign, every factor of ``2\pi``, and the placement of the
+``+\tfrac12`` in the quantization condition is pinned by this one line. It is the cheapest test
+available, and the package runs it in its own test suite for that reason.
 
-## Step 1: the potential, and a degeneracy that is reported rather than hidden
+## Step 1: the potential, and a reported degeneracy
 
 ```julia-repl
 julia> dwell = SchrodingerProblem([1.0, 0.0, -2.0, 0.0, 1.0])
@@ -79,9 +76,9 @@ julia> turning_points(dwell)
 ```
 
 At ``E = 0`` the energy sits exactly at the bottom of both wells, so the four turning points
-have collided pairwise into two *double* zeros. The package says `order 2` rather than reporting
-four nearby simple points, and any function that needs simple turning points refuses this input
-with a typed error instead of tracing through a degenerate point.
+have collided pairwise into two *double* zeros. The package reports `order 2` instead of four
+nearby simple points, and any function that needs simple turning points refuses this input with
+a typed error rather than tracing through a degenerate point.
 
 Lift the energy and the degeneracy resolves:
 
@@ -101,8 +98,7 @@ the barrier.
 
 ## Step 2: the instanton as geometry
 
-Here is the picture that makes the rest of the tutorial intuitive. Trace the Stokes graph at
-angle ``\theta = 0``:
+The Stokes graph at angle ``\theta = 0`` makes the rest of the tutorial concrete:
 
 ```julia-repl
 julia> g = stokes_graph(prob; theta = 0.0)
@@ -115,10 +111,10 @@ StokesGraph at θ = 0.0
 
 ![Stokes graph of the double well](assets/dwell_stokes.png)
 
-Ten lines escape to infinity, and two do not: they join turning point 2 to turning point 3 -
-the two ends of the barrier. That connection is the instanton, and it is *visible*, as a piece
-of graph topology rather than as an ansatz. [`saddles`](@ref) lists all such connections with
-their actions:
+Ten lines escape to infinity and two do not: they join turning point 2 to turning point 3, the
+two ends of the barrier. That connection is the instanton, and it is *visible* as a piece of
+graph topology instead of being put in as an ansatz. [`saddles`](@ref) lists all such
+connections with their actions:
 
 ```julia-repl
 julia> saddles(prob)
@@ -128,10 +124,10 @@ julia> saddles(prob)
  Saddle(3–4, |Z| = 0.40287, θ_c = 1.5708)
 ```
 
-Three: one per well (action ``0.403``, critical angle ``\pi/2``) and one for the barrier (action
-``1.84``, critical angle ``0``). Their angles differ by exactly ``\pi/2``, which is the geometric
-reason the two effects separate so cleanly - the perturbative series lives on one ray of the
-Borel plane, the tunnelling on the other.
+Three of them: one per well (action ``0.403``, critical angle ``\pi/2``) and one for the barrier
+(action ``1.84``, critical angle ``0``). Their angles differ by exactly ``\pi/2``, which is the
+geometric reason the two effects separate so cleanly. The perturbative series lives on one ray
+of the Borel plane and the tunnelling on the other.
 
 ## Step 3: the two cycles
 
@@ -162,13 +158,13 @@ VorosSymbol - quantum period ∮ S dz
   quantum series: FormalSeries{ComplexF64}: 1.2437132716233077 - 1.5543122344752192e-15im*ħ - 11.03975702252379 + 7.460698725481052e-14im*ħ^3 + 570.9633005980559 - 1.8189894035458565e-11im*ħ^5 - 72571.23867070675 + 5.334615707397461e-6im*ħ^7 + O(ħ^9)
 ```
 
-The well period is purely imaginary and the barrier period purely real - the two rays again.
-The barrier's classical part ``-1.7005`` is the instanton action at this energy; it reappears in
-Step 6 as the leading term of the series called ``A``.
+The well period is purely imaginary and the barrier period purely real, which is the two rays
+again. The barrier's classical part ``-1.7005`` is the instanton action at this energy, and it
+reappears in Step 6 as the leading term of the series called ``A``.
 
 ## Step 4: eigenvalues from an exact quantization condition
 
-The old Bohr-Sommerfeld rule says "the action is a multiple of ``\hbar``". The exact version
+The old Bohr-Sommerfeld rule makes the action a multiple of ``\hbar``. The exact version
 replaces the action by the resummed quantum period and, for a symmetric double well, factorizes
 by parity:
 
@@ -178,8 +174,8 @@ by parity:
 ```
 
 where ``\varphi`` is built from the well period and ``V_A`` from the barrier period. The
-tunnelling term ``V_A = e^{-A/\hbar}\cdot(\text{series})`` is what splits the two parities; drop
-it and both members of the doublet collapse onto the same energy.
+tunnelling term ``V_A = e^{-A/\hbar}\cdot(\text{series})`` splits the two parities. Drop it and
+both members of the doublet collapse onto the same energy.
 
 The condition itself is available as a residual, but usually you want its zero:
 
@@ -199,7 +195,7 @@ potential:
 
 ![The ground doublet of the double well](assets/dwell_levels.png)
 
-At this scale the two lines are indistinguishable - that is the point. The gap is what
+At this scale the two lines are indistinguishable. The gap between them is the quantity
 perturbation theory says is zero:
 
 ```julia-repl
@@ -208,16 +204,16 @@ julia> energy_splitting(dwell, 0, 0.1; order = 8)
 ```
 
 Six parts in a million, obtained without ever writing down an instanton. It appears because the
-quantization condition was Borel summed rather than truncated, and the summation sees the
-barrier period.
+quantization condition was Borel summed instead of truncated, and the summation sees the barrier
+period.
 
-Each eigenvalue takes a few seconds in `Float64` at order 8, the splitting about twice that -
-the cost is the expansion, which is re-run at every Newton step. Raising `order` or working in
+Each eigenvalue takes a few seconds in `Float64` at order 8, and the splitting about twice that.
+The cost is the expansion, which is re-run at every Newton step. Raising `order` or working in
 `BigFloat` buys digits at proportionate cost.
 
 ## Step 5: comparison with the instanton estimate
 
-Is that number right? Linearizing the parity condition gives the textbook one-instanton estimate
+Linearizing the parity condition gives the textbook one-instanton estimate
 ``\Delta E \approx \sqrt{V_A}\,/\,|d\varphi/dE|``, and every ingredient is available:
 [`instanton_a`](@ref) for the tunnelling series, [`perturbative_b`](@ref) for the perturbative
 one.
@@ -245,9 +241,9 @@ exponential law predicts:
 ![Level splitting versus the one-instanton line](assets/dwell_splitting.png)
 
 The splitting varies over orders of magnitude and the estimate tracks it to a couple of percent.
-The residual is real physics, not numerical error: two-instanton effects and the perturbative
+The residual is physics and not numerical error: two-instanton effects and the perturbative
 corrections *around* the instanton, which the exact condition includes and the leading estimate
-drops. The exact-WKB number is the one to trust - it is a resummation, not an asymptotic
+drops. The exact-WKB number is the one to trust, since it is a resummation and not an asymptotic
 estimate.
 
 ## Step 6: the two series and the relation between them
@@ -263,8 +259,8 @@ julia> perturbative_b(dwell, 0.3; order = 6)
 FormalSeries{ComplexF64}: 0.077383985679791 - 4.831571781737113e-17im*ħ^-1 + 0.04141333421470072 - 1.9326287126948452e-17im*ħ + 0.029183662243720702 + 6.785183320455502e-15im*ħ^3 + 0.11583561042886273 + 5.211020790109826e-12im*ħ^5 + O(ħ^7)
 ```
 
-``A`` starts at the instanton action ``1.70049`` from Step 3; ``B`` starts at the perturbative
-action. Both diverge. And they are not independent: the Zinn-Justin-Jentschura relation, in the
+``A`` starts at the instanton action ``1.70049`` from Step 3 and ``B`` at the perturbative
+action. Both diverge, and they are not independent. The Zinn-Justin-Jentschura relation, in the
 form given by Dunne and Ünsal, says
 
 ```math
@@ -272,10 +268,9 @@ form given by Dunne and Ünsal, says
 \left.\frac{\partial A}{\partial \hbar}\right|_{B},
 ```
 
-so the entire non-perturbative sector is *determined* by perturbation theory. This is the
-sharpest form of the claim that divergence is data.
+so the entire non-perturbative sector is *determined* by perturbation theory.
 
-[`verify_zjj`](@ref) checks it order by order, fitting the constant ``c`` rather than being told
+[`verify_zjj`](@ref) checks it order by order, fitting the constant ``c`` instead of being told
 it:
 
 ```julia-repl
@@ -291,10 +286,10 @@ julia> r.orders, Float64.(r.residuals)
 ```
 
 The fit lands on ``c = 3/2``, the exact value for this potential, and the residuals at the next
-two orders vanish at the working precision - twenty digits. Two divergent series, one computed
-in the classically allowed region and one under the barrier, satisfying an exact differential
-relation. That is what "resurgence" means concretely, and it is why the splitting could be
-computed at all without putting an instanton in by hand.
+two orders vanish at the working precision, twenty digits. Two divergent series, one computed in
+the classically allowed region and one under the barrier, satisfy an exact differential
+relation. That is resurgence made concrete, and it is why the splitting could be computed at all
+without putting an instanton in by hand.
 
 ## Step 7: the same fact in the Borel plane
 
@@ -324,11 +319,11 @@ julia> round.(ComplexF64.(Resurgence.poles(P)); sigdigits = 6)
 ![Borel plane of the barrier series](assets/dwell_borel.png)
 
 The conjugate pair at ``\pm 0.8346\,i`` matches the well cycle's action ``\mp 0.83146\,i`` to
-0.4%. The barrier series diverges *because of* the well cycle, and vice versa - the same
-statement as Step 6, read in the complex plane instead of order by order.
+0.4%. The barrier series diverges *because of* the well cycle and vice versa, which is the
+statement of Step 6 read in the complex plane instead of order by order.
 
-One honest caveat, worth stating because it is generic: the pair at ``\pm 0.305`` is at the
-resolution limit of a rational approximation built from six coefficients. Padé approximants
+One caveat, generic to this kind of measurement: the pair at ``\pm 0.305`` is at the resolution
+limit of a rational approximation built from six coefficients. Padé approximants
 place their nearest poles well and their further ones badly, and intermediate orders can produce
 spurious poles that vanish again at higher order. Raise the order and the precision together
 before reading anything into a pole position. [The cubic, end to end](@ref) shows the converged
@@ -358,8 +353,8 @@ From five coefficients:
 - the Borel singularities of each series sitting on the other cycle's action.
 
 Scope: `wkb_eigenvalue` and `energy_splitting` handle a single well and a symmetric double well.
-Asymmetric wells, more than two wells, and complex spectra are not implemented - they need
-further quantization-condition layouts rather than new machinery underneath.
+Asymmetric wells, more than two wells, and complex spectra are not implemented. They need
+further quantization-condition layouts, not new machinery underneath.
 
 Next: [Seiberg-Witten SU(2)](@ref), where the well-and-barrier structure becomes a periodic
 potential, the two series become the electric and magnetic periods of a gauge theory, and the

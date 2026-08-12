@@ -35,9 +35,9 @@ Pages = ["src/stokes_graph.jl"]
 ## Saddles
 
 At special angles a Stokes line runs from one turning point into another: a *saddle
-connection*, and the topology jumps there. Physically these are the BPS states - the critical
-angle is the phase of the central charge ``Z_\gamma = 2\int\sqrt{Q}`` and ``|Z_\gamma|`` its
-mass. [`saddles`](@ref) locates them by bisecting in ``\theta`` between candidate angles, and
+connection*, and the topology jumps there. These are the BPS states: the critical angle is the
+phase of the central charge ``Z_\gamma = 2\int\sqrt{Q}``, and ``|Z_\gamma|`` is its mass.
+[`saddles`](@ref) locates them by bisecting in ``\theta`` between candidate angles, and
 [`stokes_graph_family`](@ref) sweeps a range of angles so you can watch the topology flip
 across one.
 
