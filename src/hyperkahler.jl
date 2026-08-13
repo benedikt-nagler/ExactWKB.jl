@@ -229,6 +229,25 @@ function _gmn_window(R::F, mmin::F, tol::F) where {F}
     -θmax, θmax
 end
 
+# Kernel blocks. On a uniform grid A(t_k e_a, ±t_l e_b) = (ρ(±e_b) + e_a)/(ρ(±e_b) − e_a)
+# with ρ = t_l/t_k = e^{(k−l)dθ}, so each block is **Toeplitz**: 2np−1 numbers instead of
+# np². That is what makes the nine solves of a metric point - and the ten-state
+# weak-coupling SU(2) chamber - affordable. The same two vectors serve the opposite ray as
+# well, since e_a → −e_a swaps A and B. `gmn_derivative.jl` differentiates these.
+function _gmn_kernels(t::GMNTorus{F}, np::Integer, dθ::F) where {F}
+    n = n_states(t)
+    ρs = [exp(d * dθ) for d in -(np - 1):(np - 1)]
+    KA = Dict{Tuple{Int,Int},Vector{Complex{F}}}()
+    KB = Dict{Tuple{Int,Int},Vector{Complex{F}}}()
+    for a in 1:n, b in 1:n
+        t.state_pairing[a, b] == 0 && continue
+        ea, eb = t.rays[a], t.rays[b]
+        KA[(a, b)] = Complex{F}[(ρ * eb + ea) / (ρ * eb - ea) for ρ in ρs]
+        KB[(a, b)] = Complex{F}[(-ρ * eb + ea) / (-ρ * eb - ea) for ρ in ρs]
+    end
+    KA, KB
+end
+
 """
     solve_gmn(t::GMNTorus; window = nothing, n_points = nothing, tol = nothing,
               maxiter = 500, relax = 1, seed = nothing) -> GMNSolution
@@ -258,21 +277,7 @@ function solve_gmn(t::GMNTorus{F}; window = nothing, n_points = nothing,
     grid = collect(range(θmin, θmax; length = np))
     w = _trapezoid(grid)
 
-    # Kernel blocks. On a uniform grid A(t_k e_a, ±t_l e_b) = (ρ(±e_b) + e_a)/(ρ(±e_b) −
-    # e_a) with ρ = t_l/t_k = e^{(k−l)dθ}, so each block is **Toeplitz**: 2np−1 numbers
-    # instead of np². That is what makes the nine solves of a metric point - and the
-    # ten-state weak-coupling SU(2) chamber - affordable. The same two vectors serve the
-    # opposite ray as well, since e_a → −e_a swaps A and B.
-    dθ = grid[2] - grid[1]
-    ρs = [exp(d * dθ) for d in -(np - 1):(np - 1)]
-    KA = Dict{Tuple{Int,Int},Vector{Complex{F}}}()
-    KB = Dict{Tuple{Int,Int},Vector{Complex{F}}}()
-    for a in 1:n, b in 1:n
-        t.state_pairing[a, b] == 0 && continue
-        ea, eb = t.rays[a], t.rays[b]
-        KA[(a, b)] = Complex{F}[(ρ * eb + ea) / (ρ * eb - ea) for ρ in ρs]
-        KB[(a, b)] = Complex{F}[(-ρ * eb + ea) / (-ρ * eb - ea) for ρ in ρs]
-    end
+    KA, KB = _gmn_kernels(t, np, grid[2] - grid[1])
 
     sf_p = Complex{F}[_semiflat_plus(t.R, m[a], θ, t.angles[a]) for θ in grid, a in 1:n]
     sf_m = Complex{F}[_semiflat_minus(t.R, m[a], θ, t.angles[a]) for θ in grid, a in 1:n]
@@ -464,35 +469,54 @@ instanton_correction(sol::GMNSolution, γ::AbstractVector{<:Integer}, ζ::Number
 """
     MetricPoint{F}
 
-The nine GMN solutions a metric evaluation needs: the base point and the two shifted
-solutions per real coordinate, all on a **shared** rapidity grid so the central
-differences are not polluted by a moving grid. Build with [`metric_point`](@ref);
-consume with [`holomorphic_symplectic_form`](@ref), [`symplectic_expansion`](@ref) and
+A solved moduli-space point together with its coordinate derivatives, in one of two
+forms. Without a `dZdu` it holds the nine GMN solutions of a central difference: the
+base point and the two shifted solutions per real coordinate, all on a **shared**
+rapidity grid so the differences are not polluted by a moving grid. With a `dZdu` it
+holds the base point and one [`GMNDerivative`](@ref), and `plus`, `minus` and `steps`
+are empty. Build with [`metric_point`](@ref); consume with
+[`holomorphic_symplectic_form`](@ref), [`symplectic_expansion`](@ref) and
 [`hk_metric`](@ref).
 """
-struct MetricPoint{F}
+struct MetricPoint{F,D}
     base::GMNSolution{F}
     plus::Vector{GMNSolution{F}}
     minus::Vector{GMNSolution{F}}
     steps::Vector{F}
+    deriv::D
 end
+
+"""
+    is_exact(mp::MetricPoint) -> Bool
+
+Whether the coordinate derivatives of `mp` come from the linearized GMN equation rather
+than from a central difference.
+"""
+is_exact(mp::MetricPoint) = mp.deriv !== nothing
 
 n_charges(mp::MetricPoint) = n_charges(mp.base.torus)
 radius(mp::MetricPoint) = radius(mp.base.torus)
 
 """
-    metric_point(f, u::Number, theta::AbstractVector; h = 1e-3, htheta = h,
-                 window = nothing, n_points = nothing, kwargs...) -> MetricPoint
+    metric_point(f, u::Number, theta::AbstractVector; dZdu = nothing, h = 1e-3,
+                 htheta = h, window = nothing, n_points = nothing, kwargs...)
+        -> MetricPoint
 
-Solve the GMN equations at a moduli-space point and at its eight central-difference
-neighbours. `f(u, theta) -> GMNTorus` builds the BPS data at a given modulus and set of
-torus angles - for pure ``SU(2)`` that is `(u, θ) -> su2_torus(sw, u, θ; R)`, see
-[`su2_torus`](@ref). `h` is the step in `u` (both real and imaginary directions) and
-`htheta` the step in the angles. Remaining keywords go to [`solve_gmn`](@ref); the
-shared `window`/`n_points` default to the base point's own choice, slightly widened.
+Solve the GMN equations at a moduli-space point, together with the coordinate
+derivatives a metric needs. `f(u, theta) -> GMNTorus` builds the BPS data at a given
+modulus and set of torus angles - for pure ``SU(2)`` that is
+`(u, θ) -> su2_torus(sw, u, θ; R)`, see [`su2_torus`](@ref).
+
+Passing `dZdu`, the basis period derivatives ``dZ/du``, takes the exact route: one
+solve, then one [`solve_gmn_derivative`](@ref). Without it the derivatives are the
+central difference over eight neighbouring solves, with step `h` in `u` and `htheta` in
+the angles, and the metric's accuracy is bounded by that step.
+
+Remaining keywords go to [`solve_gmn`](@ref); the shared `window`/`n_points` default to
+the base point's own choice, slightly widened.
 """
-function metric_point(f, u::Number, theta::AbstractVector; h = 1e-3, htheta = h,
-                      window = nothing, n_points = nothing, kwargs...)
+function metric_point(f, u::Number, theta::AbstractVector; dZdu = nothing, h = 1e-3,
+                      htheta = h, window = nothing, n_points = nothing, kwargs...)
     t0 = f(u, theta)
     r = n_charges(t0)
     r == 2 || throw(Resurgence.InvalidArgument(
@@ -508,6 +532,13 @@ function metric_point(f, u::Number, theta::AbstractVector; h = 1e-3, htheta = h,
     np = n_points === nothing ?
          max(101, ceil(Int, 12 * (window[2] - window[1])) + 1) : Int(n_points)
     base = solve_gmn(t0; window, n_points = np, kwargs...)
+    if dZdu !== nothing
+        gd = solve_gmn_derivative(base, dZdu; tol = get(kwargs, :tol, nothing),
+                                  maxiter = get(kwargs, :maxiter, 500),
+                                  relax = get(kwargs, :relax, 1))
+        return MetricPoint{F,GMNDerivative{F}}(base, GMNSolution{F}[], GMNSolution{F}[],
+                                               F[], gd)
+    end
     hu, hθ = F(h), F(htheta)
     shifts = ((hu, 0), (im * hu, 0), (0, [hθ, zero(F)]), (0, [zero(F), hθ]))
     plus = GMNSolution{F}[]
@@ -520,16 +551,22 @@ function metric_point(f, u::Number, theta::AbstractVector; h = 1e-3, htheta = h,
                                    kwargs...))
         end
     end
-    MetricPoint{F}(base, plus, minus, F[hu, hu, hθ, hθ])
+    MetricPoint{F,Nothing}(base, plus, minus, F[hu, hu, hθ, hθ], nothing)
 end
 
-# ∂_μ log 𝒳_{e_i}(ζ) by central differences: a 4 × 2 complex matrix
+# ∂_μ log 𝒳_{e_i}(ζ) as a 4 × 2 complex matrix, exactly or by central differences
 function _dlog_xi(mp::MetricPoint{F}, ζ::Number) where {F}
     D = Matrix{Complex{F}}(undef, 4, 2)
-    for μ in 1:4, i in 1:2
+    for i in 1:2
         γ = [j == i ? 1 : 0 for j in 1:2]
-        D[μ, i] = (_log_xi(mp.plus[μ], γ, ζ, 0) - _log_xi(mp.minus[μ], γ, ζ, 0)) /
-                  (2 * mp.steps[μ])
+        if mp.deriv === nothing
+            for μ in 1:4
+                D[μ, i] = (_log_xi(mp.plus[μ], γ, ζ, 0) - _log_xi(mp.minus[μ], γ, ζ, 0)) /
+                          (2 * mp.steps[μ])
+            end
+        else
+            D[:, i] = log_xi_derivative(mp.deriv, γ, ζ)
+        end
     end
     D
 end

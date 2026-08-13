@@ -69,7 +69,8 @@ export TBASystem, TBASolution, tba_system, solve_tba, n_iterations, residual
 export GMNTorus, GMNSolution, gmn_torus, solve_gmn, xi_value, semiflat_xi,
        su2_pairing, radius, torus_angles, charge_central_charge
 export MetricPoint, metric_point, holomorphic_symplectic_form, symplectic_expansion,
-       hk_metric, hk_diagnostics, semiflat_metric, su2_torus
+       hk_metric, hk_diagnostics, semiflat_metric, su2_torus, is_exact
+export GMNDerivative, solve_gmn_derivative, log_xi_derivative, n_parameters
 export instanton_correction
 export ooguri_vafa_xi, ooguri_vafa_instantons, ooguri_vafa_torus,
        ooguri_vafa_period_derivatives
@@ -104,6 +105,7 @@ include("refined.jl")
 include("sw_curve.jl")
 include("sw_bps.jl")
 include("hyperkahler.jl")
+include("gmn_derivative.jl")
 include("show.jl")
 
 """
