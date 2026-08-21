@@ -70,6 +70,13 @@
 #    recursion that touches none of the reduction machinery).
 #  • m = 1 keeps using the hand-derived `_period_a2` above, so rung-4 numbers are
 #    unchanged; the machinery is held to it by a regression oracle on (A₁, B₁).
+#  • SCOPE, do not generalize (measured 2026-08-13, PLANNING/research-questions.md §S5):
+#    the FIRST-ORDER form is genus-1-only. a_{2m}, Π and Π′ are linear functionals on H₁,
+#    so at rank H₁ = 2 every functional is AΠ + BΠ′ and the reduction is forced, not
+#    earned; at genus ≥ 2 it is false (a sextic triple well misses by 3% to 360%, against
+#    a 1e-12 genus-1 noise floor). The correct general form is order 2g−1. Separately, the
+#    ring closure above is a property of W″, W′² being polynomials in W, i.e. of W solving
+#    an autonomous first-order ODE (here cos 2x) - NOT of hyperellipticity.
 #
 # ── Rung 3: complex u (closed forms), Picard–Fuchs continuation, the MS wall ─────────
 # The classical periods have closed forms in complete elliptic integrals (parameter
