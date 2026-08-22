@@ -23,19 +23,23 @@ jobs:
       statuses: write
     steps:
       - uses: actions/checkout@v4
+      # Same as CI: the docs build loads ClusterAlgebras.jl `main`, whose exports the
+      # ExactWKB docstrings refer to. Resurgence.jl resolves from the registry.
+      - uses: actions/checkout@v4
+        with:
+          repository: benedikt-nagler/ClusterAlgebras.jl
+          path: ClusterAlgebras.jl
       - uses: julia-actions/setup-julia@v2
         with:
           version: "1"
       - uses: julia-actions/cache@v2
-      # ClusterAlgebras.jl and Resurgence.jl resolve from the General registry under the
-      # `[compat]` bounds. Only ExactWKB itself is unregistered, and docs/Project.toml
-      # lists it, so the docs environment needs it by path.
-      - name: Develop ExactWKB into the docs environment
+      - name: Develop ExactWKB and the unreleased core into the docs environment
         run: |
           julia -e '
             using Pkg
             Pkg.activate("docs")
-            Pkg.develop(PackageSpec(path = "."))'
+            Pkg.develop([PackageSpec(path = "ClusterAlgebras.jl"),
+                         PackageSpec(path = ".")])'
         shell: bash
       - uses: julia-actions/julia-buildpkg@v1
       # Not julia-actions/julia-docdeploy, which re-resolves docs/ and would lose the

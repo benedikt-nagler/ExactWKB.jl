@@ -34,19 +34,25 @@ jobs:
             version: nightly
     steps:
       - uses: actions/checkout@v4
+      # ExactWKB is developed against ClusterAlgebras.jl `main`, not its registered
+      # version, so CI checks out the core alongside and develops it by path. The
+      # registered v0.1.1 predates API these tests call. Resurgence.jl is on the
+      # registry at a version that satisfies `[compat]`, so it resolves normally.
+      - uses: actions/checkout@v4
+        with:
+          repository: benedikt-nagler/ClusterAlgebras.jl
+          path: ClusterAlgebras.jl
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
       - uses: julia-actions/cache@v2
-      # ClusterAlgebras.jl and Resurgence.jl resolve from the General registry under the
-      # `[compat]` bounds. Only ExactWKB itself is unregistered, and test/Project.toml
-      # lists it, so the test environment needs it by path.
-      - name: Develop ExactWKB into the test environment
+      - name: Develop ExactWKB and the unreleased core into the test environment
         run: |
           julia -e '
             using Pkg
             Pkg.activate("test")
-            Pkg.develop(PackageSpec(path = "."))'
+            Pkg.develop([PackageSpec(path = "ClusterAlgebras.jl"),
+                         PackageSpec(path = ".")])'
         shell: bash
       - uses: julia-actions/julia-buildpkg@v1
       # Run the test environment prepared above directly, rather than via

@@ -61,3 +61,23 @@ Modules = [ExactWKB]
 Private = false
 Pages = ["src/hyperkahler.jl"]
 ```
+
+## Moduli derivatives
+
+[`solve_gmn_derivative`](@ref) differentiates a converged [`GMNSolution`](@ref) with
+respect to the moduli, by implicit differentiation of the fixed point rather than a finite
+difference of [`solve_gmn`](@ref). The nine solver calls a finite difference of
+[`metric_point`](@ref) needs collapse into one linear solve, so the accuracy of the metric
+stops being set by a step size. The input `dZdu` is the holomorphic ``u``-derivative of the
+*basis* central charges. State charges follow by linearity.
+
+The moduli are ordered ``(\operatorname{Re} u, \operatorname{Im} u, \theta_1, \dots,
+\theta_r)``, and [`n_parameters`](@ref) counts them. [`log_xi_derivative`](@ref) evaluates
+``\partial_\mu \log \mathcal{X}_\gamma(\zeta)`` at fixed ``\zeta``. The BPS data is held
+constant, so the derivative is undefined on a wall of marginal stability.
+
+```@autodocs
+Modules = [ExactWKB]
+Private = false
+Pages = ["src/gmn_derivative.jl"]
+```
