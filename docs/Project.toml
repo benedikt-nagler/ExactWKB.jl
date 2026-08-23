@@ -6,3 +6,4 @@ Resurgence = "e14374e1-e109-4f80-b5da-7e76adde5713"
 
 [compat]
 Documenter = "1"
+Resurgence = "0.1"
