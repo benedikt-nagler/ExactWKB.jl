@@ -1,4 +1,4 @@
-using Resurgence: FormalSeries, coefficients, power_offset, variable, n_terms
+using Resurgence: FormalSeries, coefficients, power_offset, n_terms
 
 # Substitute the truncated S = Σ_{m=-1}^{order} S_m(z0) ħ^m back into the Riccati
 # equation S² + S′ = ħ⁻² Q at a numeric point; the residual must vanish for every ħ
@@ -91,7 +91,7 @@ end
     @testset "evaluate_s_odd → FormalSeries" begin
         w = wkb_expansion(airy; order = 6, arithmetic = :exact)
         S = evaluate_s_odd(w, 2.0 + 0.5im)
-        @test variable(S) === :ħ
+        @test Resurgence.variable(S) === :ħ
         @test power_offset(S) == -1 // 1
         c = coefficients(S)
         # even entries (m = 0, 2, 4, 6 → indices 2,4,6,8) are exactly zero

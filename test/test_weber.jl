@@ -1,4 +1,4 @@
-using Resurgence: FormalSeries, coefficients, power_offset, borel, pade, poles
+using Resurgence: FormalSeries, coefficients, power_offset, borel, pade
 
 @testset "weber" begin
     @testset "Bernoulli numbers" begin
@@ -172,7 +172,7 @@ using Resurgence: FormalSeries, coefficients, power_offset, borel, pade, poles
         Sf = FormalSeries(ComplexF64[ComplexF64(c) for c in coefficients(S)], :x;
                           power_offset = 1 // 1)
         B = borel(Sf)
-        ps = sort(poles(pade(B; reduce = true)); by = abs)
+        ps = sort(Resurgence.poles(pade(B; reduce = true)); by = abs)
         @test length(ps) ≥ 4
         for z in ps[1:4]
             @test abs(real(z)) < 1e-6 * (1 + abs(z))          # purely imaginary

@@ -21,7 +21,7 @@ ExactWKBMakieExt = "Makie"
 
 [compat]
 AbstractAlgebra = "0.50"
-ClusterAlgebras = "0.1"
+ClusterAlgebras = "0.2"
 LinearAlgebra = "1"
 Makie = "0.24"
 OrdinaryDiffEqTsit5 = "1"

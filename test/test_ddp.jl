@@ -11,7 +11,7 @@
 # Contour parameters: WKB order 12 with margin = 0.4 keeps the even-period roundoff
 # check clean in Float64 (the theorem itself holds to 1e-63 in BigFloat).
 
-using Resurgence: evaluate, borel, pade, poles
+using Resurgence: evaluate, borel, pade
 import ClusterAlgebras
 
 @testset "ddp" begin
@@ -42,7 +42,7 @@ import ClusterAlgebras
         # the Borel singularity of V_γ₂ on the θ_c = 0 ray sits at ζ = −Z_{γ₁}
         # (so that the jump carries e^{-ζ/ħ} = e^{Z_{γ₁}/ħ} = the decaying V_{γ₁})
         B2, r2 = ExactWKB._voros_approximant(v2)
-        ps = poles(r2)
+        ps = Resurgence.poles(r2)
         ζ = -classical_period(v1)
         nearest = ps[argmin(abs.(ps .- ζ))]
         @test abs(nearest - ζ) < 0.02 * abs(ζ)

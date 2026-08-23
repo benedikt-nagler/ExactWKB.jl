@@ -1,4 +1,4 @@
-using Resurgence: FormalSeries, coefficients, power_offset, borel, pade, poles
+using Resurgence: FormalSeries, coefficients, power_offset, borel, pade
 
 @testset "voros" begin
     @testset "harmonic Bohr–Sommerfeld: E = 2ħ(n+½)" begin
@@ -54,7 +54,7 @@ using Resurgence: FormalSeries, coefficients, power_offset, borel, pade, poles
         # equal-degree Padé is degenerate on an alternating-zero series (documented);
         # reduction handles it and poles run.
         r = pade(B; reduce = true)
-        @test poles(r) isa AbstractVector
+        @test Resurgence.poles(r) isa AbstractVector
     end
 
     @testset "the derivative Voros symbol" begin
