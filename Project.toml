@@ -20,7 +20,7 @@ Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 ExactWKBMakieExt = "Makie"
 
 [compat]
-AbstractAlgebra = "0.50"
+AbstractAlgebra = "0.50, 0.51"
 ClusterAlgebras = "0.2"
 LinearAlgebra = "1"
 Makie = "0.24"
