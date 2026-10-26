@@ -5,4 +5,5 @@ ExactWKB = "2e22cd82-83a6-4285-a01a-0df6bda5ba53"
 Resurgence = "e14374e1-e109-4f80-b5da-7e76adde5713"
 
 [compat]
+ClusterAlgebras = "0.1"
 Documenter = "1"
