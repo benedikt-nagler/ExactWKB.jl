@@ -106,7 +106,9 @@ end
     wkb_expansion(prob::SchrodingerProblem; order = 10, arithmetic = :auto)
         -> WKBExpansion
 
-Compute the Riccati coefficients `S₋₁ … S_order`. `arithmetic` selects the numerator
+Compute the Riccati coefficients `S₋₁ … S_order` for real polynomial coefficients.
+Complex evaluation points are supported; nonreal coefficients throw [`InvalidPotential`](@ref).
+`arithmetic` selects the numerator
 ring: `:exact` (`QQ`, requires rational/integer `Q`), `:bigfloat` (`RealField`), or
 `:auto` (exact when the potential coefficients are exact, else BigFloat). Exact-ring
 blow-up in the numerator degree is the known cost driver at high order.
@@ -116,7 +118,8 @@ function wkb_expansion(prob::SchrodingerProblem; order::Integer = 10,
     order ≥ 0 || throw(Resurgence.InvalidArgument("order must be ≥ 0, got $order"))
     R, br, mode = _wkb_ring(prob, arithmetic)
     q = q_coefficients(prob)
-    Q = R([br(c) for c in q])
+    all(isreal,q) || throw(InvalidPotential("Riccati expansions require real polynomial coefficients"))
+    Q = R([br(real(c)) for c in q])
     Qp = AA.derivative(Q)
     P = typeof(Q)
 

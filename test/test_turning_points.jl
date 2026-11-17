@@ -54,3 +54,16 @@
         @test sort(real.(location.(tps))) ≈ [-1.0, 1.0]
     end
 end
+
+@testset "multiplicity is algebraic, not proximity" begin
+    p = SchrodingerProblem([-1e-10,0.0,1.0])
+    t = turning_points(p)
+    @test length(t)==2 && all(is_simple,t)
+    @test real.(location.(t)) ≈ [-1e-5,1e-5]
+    @test_throws Resurgence.InvalidArgument turning_points(p;cluster_tol=1e-3)
+    t = turning_points(SchrodingerProblem([1.0,-2.0,1.0]))
+    @test length(t)==1 && order(only(t))==2
+    # An exactly represented perturbation destroys the double zero.
+    t = turning_points(SchrodingerProblem([prevfloat(1.0),-2.0,1.0]))
+    @test length(t)==2 && all(is_simple,t)
+end

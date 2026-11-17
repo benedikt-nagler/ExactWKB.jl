@@ -1,22 +1,11 @@
-# Saddles (BPS states) of a Schrödinger problem.
-#
-# A *saddle* is a Stokes line connecting two turning points `z_i`, `z_j` - a finite
-# trajectory. It appears only at the critical phase `θ_c = arg Z_ij (mod π)`, where
-#
-#     Z_ij = 2 ∫_{z_i}^{z_j} √Q dz
-#
-# is the central charge. Under the Iwaki–Nakanishi dictionary a finite Stokes line is a
-# BPS state and `|Z_ij|` is its mass - the datum the cluster bridge turns into a
-# spectrum. `saddle_candidates` finds the `Z_ij` of every turning-point pair from the
-# periods alone; `saddles` keeps only those whose finite edge is confirmed by actually
-# tracing the graph at `θ_c`.
-
+# Finite-trajectory candidates from one chosen path per turning-point pair.
+# Numerical confirmation is not a completeness theorem over homology classes.
 # -- type --------------------------------------------------------------------------
 
 """
     Saddle{F}
 
-A candidate BPS saddle between the simple turning points indexed `pair = (i, j)`
+A candidate finite trajectory between the simple turning points indexed `pair = (i, j)`
 (`i < j`, into `simple_turning_points(prob)`). `central_charge` is `Z_ij = 2∫√Q`, and
 `theta` is the critical phase `arg Z_ij (mod π)` at which the finite Stokes line
 appears. Its mass is `|Z_ij|` (see [`mass`](@ref)).
@@ -34,7 +23,7 @@ theta(s::Saddle) = s.theta
 """
     mass(s::Saddle) -> Real
 
-The BPS mass `|Z_ij|` of the saddle.
+The absolute candidate period `|Z_ij|` of the saddle.
 """
 mass(s::Saddle) = abs(s.central_charge)
 

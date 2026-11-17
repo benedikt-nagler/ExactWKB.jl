@@ -5,8 +5,7 @@
 #
 #   a(ħ) = v₋₁ ħ⁻¹ + v₁ ħ + v₃ ħ³ + …,   v_m = ∮ S_m dz,
 #
-# an odd-only Laurent series. The leading v₋₁ = ∮√Q is the classical period (the
-# future Transseries action) and is stored apart; the ħ¹-and-up tail is a FormalSeries
+# an odd-only Laurent series. The leading v₋₁ = ∮√Q is the classical period (the classical action) and is stored apart; the ħ¹-and-up tail is a FormalSeries
 # with power offset 1 and alternating-zero coefficients - exactly the shape of
 # Resurgence's Euler series, so it feeds `borel`/`pade`/`laplace_sum` unchanged.
 
@@ -65,12 +64,9 @@ The Voros symbol of the cycle `contour`: computes the quantum periods
 passes through to the quadrature of each period (default `√eps` of the working
 float - override to trade precision for speed in energy sweeps).
 
-Given a [`WKBDerivative`](@ref) instead of a `WKBExpansion`, the same construction on
-``∂S_m`` returns the **derivative** symbol ``∂_λ v_{-1} ħ^{-1} + ∂_λ v₁ ħ + …``. Since
-``∂_λ`` commutes with Borel summation, that object is summed by the ordinary
-`voros_value` path to give ``∂_λ \\log V`` - the derivative series is summed, rather
-than the summation being differentiated. The even periods vanish for every `λ`, so
-their derivatives vanish too and the same sanity check applies.
+Given a [`WKBDerivative`](@ref), construct the formal parameter-derivative symbol.
+Summing that series is generally different from differentiating a finite Padé approximation
+of the primal symbol. No numerical derivative identity is asserted here.
 """
 function voros_symbol(w::Union{WKBExpansion,WKBDerivative}, contour::AbstractVector;
                       closed::Bool = true, atol = nothing, rtol = nothing)
@@ -119,4 +115,52 @@ function voros_symbol(w::Union{WKBExpansion,WKBDerivative}, contour::AbstractVec
         v[m] = 0
     end
     VorosSymbol{F}(classical, FormalSeries(v, :ħ; power_offset = 1 // 1))
+end
+
+# Summation belongs to Voros data, independently of the cluster dictionary.
+using Resurgence: borel, pade, laplace_sum
+
+# Borel–Padé approximant of the quantum tail. reduce = true is mandatory: the odd-only
+# Voros series has alternating zero coefficients, so the equal-degree Padé system is
+# always degenerate (documented at quantum_series).
+function _voros_approximant(vs::VorosSymbol; order = nothing)
+    B = borel(quantum_series(vs))
+    B, pade(B; order, reduce = true)
+end
+
+# Numerical sector rays are explicit. No contour-deformation identity for a noisy
+# finite approximant is assumed. Check tilt/order stability before physical interpretation.
+function _tail_sum(B, r, ħ; theta, side, tilt, rtol)
+    isfinite(tilt) && 0 < tilt < pi/2 || throw(Resurgence.InvalidArgument(
+        "tilt must be finite and lie in (0, pi/2)"))
+    T = typeof(float(real(ħ)))
+    value(sign) = laplace_sum(B,r,ħ;θ=T(theta)+sign*T(tilt),rtol)
+    side === :median && return (value(1)+value(-1))/2
+    value(side === :plus ? 1 : -1)
+end
+
+_value_type(ħ) = Complex{typeof(float(real(ħ)))}
+
+# log V = v₋₁/ħ + s(tail): the exponent of the Voros symbol. All jump arithmetic
+# happens here in log space (no overflow, and jumps compose additively).
+function _log_voros(vs::VorosSymbol, ħ::Number; theta::Real = 0, side::Symbol = :median,
+                    order = nothing, tilt::Real = 1 // 100, rtol = nothing)
+    side in (:plus, :minus, :median) || throw(Resurgence.InvalidArgument(
+        "side must be :plus, :minus or :median, got :$side"))
+    B, r = _voros_approximant(vs; order)
+    _value_type(ħ)(classical_period(vs) / ħ + _tail_sum(B, r, ħ; theta, side, tilt, rtol))
+end
+
+"""
+    voros_value(vs::VorosSymbol, ħ; theta = 0, side = :median, tilt = 1//100, kwargs...)
+
+Estimate `exp(classical_period/hbar + summed_tail)` on explicit regular rays.
+`:plus` and `:minus` use `theta + tilt` and `theta - tilt`.
+`:median` averages their logarithmic tail sums before exponentiation.
+These finite-approximant samples are not certified physical lateral sums.
+Order and tilt stability require independent checks; no exact deformation is assumed.
+"""
+function voros_value(vs::VorosSymbol, ħ::Number; theta::Real = 0, side::Symbol = :median,
+                     order = nothing, tilt::Real = 1 // 100, rtol = nothing)
+    exp(_log_voros(vs, ħ; theta, side, order, tilt, rtol))
 end

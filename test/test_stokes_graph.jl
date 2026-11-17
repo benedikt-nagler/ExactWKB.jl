@@ -155,11 +155,6 @@ using Test
         @test masses[end] ≈ masses[1] / 16 rtol = 5e-3
     end
 
-    @testset "the triangulation layer refuses a degenerate graph" begin
-        g = stokes_graph(SchrodingerProblem([0, 0, 1]); theta = 0.3)
-        @test is_degenerate(g)
-        @test_throws NonGenericGraph ideal_triangulation(g)
-    end
 
     @testset "BigFloat opt-in traces at high precision" begin
         setprecision(BigFloat, 128) do

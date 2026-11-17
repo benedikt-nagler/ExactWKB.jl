@@ -33,13 +33,17 @@ jobs:
         with:
           version: "1"
       - uses: julia-actions/cache@v2
-      - name: Develop ExactWKB and the unreleased core into the docs environment
+      # Both environments, and a registry refresh: see the note in CI.yml.
+      - name: Develop ExactWKB and the unreleased core into both environments
         run: |
           julia -e '
             using Pkg
+            Pkg.Registry.update()
             Pkg.activate("docs")
             Pkg.develop([PackageSpec(path = "ClusterAlgebras.jl"),
-                         PackageSpec(path = ".")])'
+                         PackageSpec(path = ".")])
+            Pkg.activate(".")
+            Pkg.develop(PackageSpec(path = "ClusterAlgebras.jl"))'
         shell: bash
       - uses: julia-actions/julia-buildpkg@v1
       # Not julia-actions/julia-docdeploy, which re-resolves docs/ and would lose the

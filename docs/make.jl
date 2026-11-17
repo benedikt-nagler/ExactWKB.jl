@@ -13,27 +13,7 @@ makedocs(;
         assets = String[],
         mathengine = Documenter.KaTeX(),
     ),
-    pages = [
-        "Home" => "index.md",
-        "Tutorials" => [
-            "The cubic, end to end" => "tutorial_cubic.md",
-            "The double well" => "tutorial_double_well.md",
-            "Seiberg-Witten SU(2)" => "tutorial_sw.md",
-        ],
-        "Manual" => [
-            "Problems and turning points" => "problems.md",
-            "The WKB expansion" => "wkb.md",
-            "Stokes graphs" => "stokes.md",
-            "Spectra" => "spectra.md",
-            "Wall-crossing" => "ddp.md",
-            "The cluster bridge" => "bridge.md",
-            "Thermodynamic Bethe ansatz" => "tba.md",
-            "Seiberg-Witten geometry" => "seiberg_witten.md",
-            "Plotting" => "plotting.md",
-        ],
-        "Errors" => "errors.md",
-        "API index" => "api.md",
-    ],
+    pages = ["Home" => "index.md", "Expansion and period API" => "api.md", "Graphs and numerics" => "numerics.md"],
     checkdocs = :exports,
 )
 

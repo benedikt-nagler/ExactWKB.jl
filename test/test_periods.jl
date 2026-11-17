@@ -51,8 +51,7 @@ using QuadGK: quadgk
         # rejected as a turning point - which broke `charge_basis(prob, g)` on two of
         # three chambers of this very problem.
         p = RationalProblem([-0.3, -1.0, 0.0, 1.0], [0.0], [4])
-        g = stokes_graph(p; theta = 0.9)
-        c = charge_contour(p, diagonal_core_paths(g)[1])
+        c = ComplexF64[0.017, 0.017+0.6im, -1+0.6im, -1-0.6im, 0.017-0.6im]
         # the contour really does dip next to the order-4 pole, so max|Q| really is huge
         @test minimum(abs, c) < 0.05
         @test maximum(abs(p(z)) for z in c) > 1e5
@@ -163,4 +162,43 @@ using QuadGK: quadgk
             @test abs(P - (-im * BigFloat(π) * E)) < 1e-25
         end
     end
+end
+
+@testset "continued sheet and geometric guards" begin
+    p = SchrodingerProblem([1.0, 1.0, 0.0, 0.0, 1.0])
+    v = ComplexF64[2+2im, -2+2im, -2-2im, 2-2im]
+    dense = [a + t*(b-a) for (a,b) in zip(v, circshift(v,-1))
+             for t in range(0,1; length=9)[1:end-1]]
+    # sqrt(z^4+z+1) = z^2 + 1/(2z) + O(z^-2) on this initial sheet.
+    @test period_integral(p,v) ≈ pi*im atol=1e-11
+    @test period_integral(p,dense) ≈ period_integral(p,v) atol=1e-11
+    deformed = ComplexF64[3+2im,-3+2im,-3-2im,3-2im]
+    @test period_integral(p,deformed) ≈ pi*im atol=1e-11
+    @test period_integral(p,reverse(v)) ≈ -pi*im atol=1e-11
+    twice = vcat(v,v)
+    @test period_integral(p,twice) ≈ 2pi*im atol=1e-10
+    @test_throws ContourError period_integral(SchrodingerProblem([-1.0,0.0,1.0]),
+                                             ComplexF64[-2,2];closed=false)
+    @test_throws ContourError period_integral(p,ComplexF64[])
+    @test_throws ContourError wkb_period(wkb_expansion(p;order=1),ComplexF64[],1)
+    @test_throws ContourError wkb_period(wkb_expansion(p;order=1),v,1;
+                                        rtol=1e-30,atol=0.0,maxevals=20)
+    # A real BigFloat contour must retain its precision.
+    setprecision(160) do
+        linear = SchrodingerProblem(BigFloat[0,1])
+        value = period_integral(linear,BigFloat[1,2];closed=false,rtol=big"1e-35")
+        @test value isa Complex{BigFloat}
+        @test value ≈ (big(2)^(3//2)-1)*2/3 rtol=big"1e-34"
+    end
+end
+
+@testset "scale and quadrature tolerance are independent" begin
+    v = ComplexF64[2+2im,-2+2im,-2-2im,2-2im]
+    p = SchrodingerProblem(1e-24 .* [1.0,1.0,0.0,0.0,1.0])
+    @test period_integral(p,v) ≈ 1e-12*pi*im rtol=1e-10
+    rational = RationalProblem([1.0,0.0,1.0],[0.0],[2])
+    @test abs(period_integral(rational,v;atol=1e-11)) < 1e-11
+    harmonic = wkb_expansion(SchrodingerProblem([-1.0,0.0,1.0]);order=1)
+    @test abs(wkb_period(harmonic,v,1;rtol=1e-30,atol=1e-10)) < 1e-10
+    @test_throws ContourError period_integral(p,ComplexF64[Inf,2];closed=false)
 end

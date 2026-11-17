@@ -48,13 +48,13 @@
 #     below is a 0/0 at `m = 2` and needs its own branch;
 #   * the ray winds `log(R/r)·|tan(α−θ)|/2π` times on the way in, which diverges as
 #     `θ → α ± π/2`. That limit is the puncture's own wall: there the trajectories
-#     close up into a ring domain (`ring_domain_walls`). `max_winding` refuses it
+#     close up into a ring domain (a separate local analysis). `max_winding` refuses it
 #     rather than integrating tens of thousands of turns into a wrong answer.
 #
 # `r` is monotone along the spiral, so the first crossing of the pole circle is
 # well defined, and since Stokes lines never cross, the cyclic order of those crossing
 # angles is the exact rotation at the puncture vertex - which is all the dual
-# construction reads (see `src/triangulation.jl`). The exit *angle* is not a marked
+# construction would read. The exit *angle* is not a marked
 # point any more; the cyclic order still is.
 
 import OrdinaryDiffEqTsit5 as ODE
@@ -240,7 +240,7 @@ safety. A simple turning point gives the familiar three rays with `c_1 = Q′(z�
 **Degenerate turning points** (order ≥ 2) are traced, not refused: see
 [`is_degenerate`](@ref). An order-2 point emits four rays and is a *crossing* of two
 smooth Stokes curves rather than a vertex, because `√Q` is single-valued there. The
-downstream triangulation layer still requires an all-simple graph.
+higher-order local tracing is a numerical construction, not a connection theorem.
 
 **Poles.** For a [`RationalProblem`](@ref) a ray may instead run into a pole of `Q`,
 which the tracer treats as a second escape boundary: it ends with
@@ -250,7 +250,7 @@ singularity or turning point).
 
 **Punctures.** At a *double* pole the rays spiral in rather than arriving along an
 asymptotic direction, and the winding diverges as `theta` approaches that puncture's
-ring-domain wall ([`ring_domain_walls`](@ref)). `max_winding` (default `12` turns)
+ring-domain wall (not classified here). `max_winding` (default `12` turns)
 refuses such a trace with [`TracingFailed`](@ref) instead of integrating it.
 
 Keyword arguments (all with geometry-scaled defaults): `seed_radius`, `hit_radius`,
@@ -317,7 +317,7 @@ function stokes_graph(prob::AbstractSchrodingerProblem; theta = 0.0,
                 "θ = $(Float64(θ)) is too close to the ring-domain wall at " *
                 "θ = $(round(Float64(θw), digits = 6)) (mod π), where the trajectories " *
                 "close up instead of spiralling in. Perturb θ off the " *
-                "ring_domain_walls phases, or raise max_winding = $(max_winding)"))
+                "double-pole closed-trajectory phases, or raise max_winding = $(max_winding)"))
             budget = max(budget, abs(rt_c) * log(er / pr[j]) / abs(cosαθ))
         else
             budget = max(budget, abs(rt_c) * pr[j]^(1 - m / 2) / (m / 2 - 1))
@@ -386,7 +386,7 @@ n_infinite_lines(g::StokesGraph) = count(l -> l.endpoint === :infinity, g.lines)
 
 `true` when `g` has a turning point of order ≥ 2. Such a graph is a *wall*: the
 degenerate point splits into simple ones under any generic perturbation, and the
-`(m+2)`-gon it is dual to admits several triangulations. The triangulation and bridge
+`(m+2)`-gon it is dual to admits several triangulations. The archived triangulation and automatic bridge
 layers require `!is_degenerate(g)`.
 """
 is_degenerate(g::StokesGraph) = any(!is_simple, g.turning_points)

@@ -1,142 +1,29 @@
-```@meta
-CurrentModule = ExactWKB
-```
-
 # ExactWKB.jl
 
-Exact Wentzel-Kramers-Brillouin analysis of one-dimensional Schrödinger equations with
-polynomial or rational potentials, equivalently of second-order linear differential equations
-with a small parameter: turning points, the all-orders expansion, quantum periods and Voros
-symbols, Stokes graphs, exact quantization conditions, spectra of stable states and their
-wall-crossing, and the dictionary to cluster algebras.
+Compute finite Riccati expansions, numerical periods and selected Stokes graphs for
+`hbar^2 * psi'' = (V-E) * psi`. Numerical output is not a certified Borel sum.
 
-The object is the Schrödinger equation in its complex-analytic form
+Real-coefficient polynomial potentials support the formal WKB recursion.
+Complex evaluation points are supported; nonreal coefficients are refused. Rational potentials support
+classical periods and numerical trajectory tracing only. Pole orders are supplied data.
+A root multiplicity belongs to the exact polynomial represented by the input numbers.
+The root locations remain numerical.
 
-```math
-\hbar^2 \psi''(z) = Q(z)\,\psi(z), \qquad Q(z) = V(z) - E,
-```
+Quantization supports confining quadratics and symmetric quartics
+`V0 + a*z^2 + b*z^4`, with `a >= 0` and `b > 0`. Harmonic eigenvalues are exact.
+Anharmonic phase conditions are finite-order approximations and may miss
+nonperturbative contributions. A small root residual does not bound their spectral error.
 
-with ``z`` complex. The
-[Wentzel-Kramers-Brillouin ansatz](https://en.wikipedia.org/wiki/WKB_approximation) turns it
-into a Riccati equation solved by a power series in ``\hbar`` that diverges for every
-``\hbar \neq 0``. Borel summed, that series gives genuine solutions, and the *Stokes graph*,
-the level set ``\mathrm{Im}\left(e^{-i\theta}\int\sqrt{Q}\right) = 0``, records which solution
-you are on. It jumps discontinuously as the summation direction ``\theta`` rotates.
+Voros summation samples explicit rays `theta +/- tilt`; stability in order and tilt
+must be checked separately. A finite approximant does not certify physical laterals.
 
-Cluster algebras enter at that jump. By the Iwaki-Nakanishi dictionary a generic Stokes graph
-is dual to an ideal triangulation, the jump of the Voros symbols across a wall is a cluster
-``y``-mutation, and a full circuit of the ``\theta``-plane is a maximal green sequence. The
-package computes both sides and checks that they agree. Since the combinatorial side is exact,
-it certifies the numerical one.
+The DDP comparison takes supplied cycles and intersection data. The jump formula
+requires simple zeros and one isolated regular saddle (Iwaki-Nakanishi 2014, Theorem 3.4).
+The routines do not establish these hypotheses or infer a complete BPS spectrum.
 
-**Scope.** ``Q`` may be a polynomial or a rational function. The polynomial case covers the
-harmonic, quartic, double-well and cubic oscillators and the rest of the standard test
-problems. The rational case adds poles, and with them surfaces: an irregular pole (order
-``\geq 3``) is a boundary circle of the surface the triangulation lives on, and a regular one
-(a double pole) is a puncture, so a rational ``Q`` reaches cluster types a polynomial one
-cannot. The Mathieu equation is one of these, which is where the Wentzel-Kramers-Brillouin
-side and the Seiberg-Witten curve side meet on the same problem. Exact `Rational` input flows
-through to `BigFloat` at whatever precision the caller has set.
+The Weber routines refer only to the quadratic normal form and its gamma asymptotics.
+Stokes trajectory endpoints use numerical event tolerances and finite integration budgets.
+Incomplete tracing raises `TracingFailed` unless partial output is explicitly requested.
 
-## Installation
-
-Not yet registered in General, but both of its foundations are, so Pkg resolves them by
-name. From the Julia REPL:
-
-```julia
-pkg> add https://github.com/benedikt-nagler/ExactWKB.jl
-```
-
-Requires Julia 1.10 or later.
-
-## Quick start
-
-```julia
-using ExactWKB
-
-# Double well, Q = (z² − 1)² − 1/4, coefficients in ascending order
-prob = SchrodingerProblem([0.75, 0.0, -2.0, 0.0, 1.0])
-
-tps = turning_points(prob)           # four simple turning points
-w   = wkb_expansion(prob; order = 6) # Riccati recursion for S_odd
-vs  = voros_symbol(w, encircling_contour(tps[2], tps[3]))
-
-classical_period(vs)                 # the ħ⁻¹ term, ∮√Q ≈ 1.8399
-g = stokes_graph(prob; theta = 0.3)  # traced Stokes lines
-saddles(prob)                        # 3 saddle connections, with central charges
-```
-
-Exact quantization gives energy levels, not only series:
-
-```julia
-harm = SchrodingerProblem([0.0, 0.0, 1.0])   # V = z², so Eₙ = 2ħ(n + ½)
-wkb_eigenvalue(harm, 0, 0.1; order = 6)      # 0.1
-wkb_eigenvalue(harm, 3, 0.1; order = 6)      # 0.7
-```
-
-The cluster bridge, on the cubic:
-
-```julia
-cubic = SchrodingerProblem([0.0, -1.0, 0.0, 1.0])  # Q = z³ − z
-t = ideal_triangulation(stokes_graph(cubic; theta = 0.3))
-q = triangulation_quiver(t)          # a ClusterAlgebras.Quiver, here type A₂
-
-sp = bps_spectrum(cubic; theta = 0.3, margin = 0.4)
-charges(sp)                          # [[1, 0], [0, 1]] - charges in phase order
-solve_tba(sp)                        # the same periods again, from the spectrum alone
-```
-
-## Tutorials
-
-Three worked problems, each carried end to end in code. Between them they exercise every layer
-of the package.
-
-**[The cubic, end to end](@ref)** recovers an exact answer from a divergent series. One cubic
-potential from turning points to the Borel plane, the Stokes graph, a pentagon triangulation,
-the ``A_2`` quiver, the spectrum as a maximal green sequence, and wall-crossing as a cluster
-mutation measured to seven digits. The periods are then recomputed from the spectrum alone
-through integral equations, agreeing with the resummation to six digits and producing the
-golden ratio in the infrared.
-
-**[The double well](@ref)** computes a quantity that vanishes to all orders of the only
-expansion available. The tunnelling splitting of a symmetric double well appears as the
-instanton edge of the Stokes graph and as a gap of ``6\times10^{-6}`` from a resummed
-quantization condition, which agrees with the one-instanton estimate. The relation that
-determines the instanton series from perturbation theory is verified to twenty digits.
-
-**[Seiberg-Witten SU(2)](@ref)** asks which particles are stable in a strongly coupled gauge
-theory and how the list changes with the vacuum. Periods on the whole moduli space are checked
-against a three-instanton expansion, monodromy is measured by transporting a differential
-equation and comes out as exact integer matrices, and the wall of marginal stability separates
-the two spectra. The Kontsevich-Soibelman identity relating them closes to exactly zero in
-rational arithmetic.
-
-## Manual
-
-| Page | Covers |
-|------|--------|
-| [Problems and turning points](problems.md) | `SchrodingerProblem`, energies, roots of ``Q`` and their multiplicities |
-| [The WKB expansion](wkb.md) | the Riccati recursion, period integrals with branch tracking, Voros symbols |
-| [Stokes graphs](stokes.md) | the augmented-state tracer, topology signatures, saddle connections |
-| [Spectra](spectra.md) | energy-dependent cycles, exact quantization, eigenvalues, double-well splittings |
-| [Wall-crossing](ddp.md) | lateral Borel sums, the Delabaere-Dillinger-Pham jump, wall-crossing as ``y``-mutation |
-| [The cluster bridge](bridge.md) | ideal triangulations, quivers, charge lattices, signed frames, spectra of stable states |
-| [Thermodynamic Bethe ansatz](tba.md) | the conformal-limit Gaiotto-Moore-Neitzke equations: quantum periods from the spectrum alone |
-| [Seiberg-Witten geometry](seiberg_witten.md) | ``SU(2)`` periods on the ``u``-plane, monodromy, the wall, wall-crossing |
-| [Plotting](plotting.md) | the Makie extension |
-
-The [API index](@ref) lists every exported name.
-
-## Related packages
-
-This is the bridge of a family of Julia packages for **exact and asymptotic methods**, in which
-a discrete, exactly computable structure controls a continuous, only-asymptotically defined
-one. [Resurgence.jl](https://github.com/benedikt-nagler/Resurgence.jl) is the continuous
-foundation, providing the Borel-Padé summation, transseries and alien calculus used here.
-[ClusterAlgebras.jl](https://github.com/benedikt-nagler/ClusterAlgebras.jl) is the discrete
-one, providing quivers, seed mutation, green sequences and Donaldson-Thomas invariants.
-Neither depends on the other, or on this package.
-
-Names from those packages are **not** re-exported: use `import Resurgence` /
-`import ClusterAlgebras` and qualify. Public types here expose plain numbers and
-`Resurgence.FormalSeries`; AbstractAlgebra ring elements never leak out of the recursion.
+Removed applications are preserved in the repository's `archive/2026-10-26-reduction/`.
+They are experimental and unvalidated, and are excluded from loading, tests and this manual.

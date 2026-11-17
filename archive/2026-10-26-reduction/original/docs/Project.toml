@@ -1,0 +1,8 @@
+[deps]
+ClusterAlgebras = "8a79f08c-43aa-40ef-a276-b8dea658c9b1"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+ExactWKB = "2e22cd82-83a6-4285-a01a-0df6bda5ba53"
+Resurgence = "e14374e1-e109-4f80-b5da-7e76adde5713"
+
+[compat]
+Documenter = "1"

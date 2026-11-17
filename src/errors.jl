@@ -66,20 +66,6 @@ end
 
 Base.showerror(io::IO, e::TracingFailed) = print(io, "TracingFailed: ", e.msg)
 
-"""
-    NonGenericGraph(msg)
-
-Thrown by [`ideal_triangulation`](@ref) when the traced Stokes graph is not generic -
-it contains a finite Stokes line (`θ` sits on a wall: perturb it away from the
-[`saddle_candidates`](@ref) phases), an `:incomplete` line, or fails a combinatorial
-invariant of a generic degree-`d` graph (`d + 2` marked points, `d` triangles,
-`2d + 1` Stokes regions).
-"""
-struct NonGenericGraph <: ExactWKBError
-    msg::String
-end
-
-Base.showerror(io::IO, e::NonGenericGraph) = print(io, "NonGenericGraph: ", e.msg)
 
 """
     CoalescentTurningPoints(energy, z, separation)
@@ -105,9 +91,8 @@ end
 """
     QuantizationError(msg)
 
-Thrown by [`wkb_eigenvalue`](@ref) when the Newton iteration on the exact
-quantization condition fails to converge (bad seed, coalescing turning points along
-the Newton path, or an `n`/`parity` that selects no eigenvalue), and by
+Thrown by [`wkb_eigenvalue`](@ref) when the numerical quantization solver fails to converge (bad seed, coalescing turning points along
+the solver path, or an `n` that selects no eigenvalue), and by
 [`quantization_condition`](@ref) when the spectral-cycle layout at `E` does not match
 the requested condition (no well cycle, or a multi-well problem where a single-well
 condition was requested).
@@ -117,59 +102,3 @@ struct QuantizationError <: ExactWKBError
 end
 
 Base.showerror(io::IO, e::QuantizationError) = print(io, "QuantizationError: ", e.msg)
-
-"""
-    ChamberError(msg)
-
-Thrown when a chamber cannot carry the cluster machinery. Since the signed frame
-(`src/signed_frame.jl`) every chamber is supported, so this now signals a genuine
-obstruction rather than an unimplemented case:
-
-  * by [`bps_spectrum`](@ref) / `_sweep_chamber`, when two *non-commuting* saddle
-    phases coincide within tolerance (marginal stability - perturb the potential or
-    the energy), when the greedy sweep fails to close into a maximal green sequence,
-    or when the swept states fail to reproduce the confirmed [`saddles`](@ref)
-    (an internal inconsistency, not a reason to try another θ);
-  * by [`reference_theta`](@ref), when the top chamber `(θ_max, π)` is too narrow to
-    trace generically, so the frame has no reference chamber to pin `ε ≡ +1`;
-  * by [`verify_signed_frame`](@ref), when a wall's simultaneously flipped diagonals
-    do not commute in the quiver.
-
-A keystone failure is a [`ContourError`](@ref), not this - it says the numerical
-contours do not represent the combinatorial classes.
-"""
-struct ChamberError <: ExactWKBError
-    msg::String
-end
-
-Base.showerror(io::IO, e::ChamberError) = print(io, "ChamberError: ", e.msg)
-
-"""
-    TBAError(msg)
-
-Thrown by the TBA layer: by [`tba_system`](@ref) on an empty spectrum, by
-[`solve_tba`](@ref) when the fixed-point iteration fails to converge within
-`maxiter` (pass a larger `maxiter`, or under-relax with `relax < 1`), and by
-evaluation when the requested `ħ` falls outside the solved rapidity window.
-"""
-struct TBAError <: ExactWKBError
-    msg::String
-end
-
-Base.showerror(io::IO, e::TBAError) = print(io, "TBAError: ", e.msg)
-
-"""
-    PeriodError(msg)
-
-Thrown by the algebraic-geometry period layer (`src/sw_curve.jl`): by
-[`sw_periods`](@ref) / [`quantum_sw_periods`](@ref) when a modulus falls outside the
-implemented region (this rung covers the weak-coupling / electric region `u > 2Λ²` of
-the pure-SU(2) curve), by [`quantum_sw_periods`](@ref) on an unsupported expansion
-order, and by [`sw_monodromy`](@ref) on an unknown singular point. Generic; the natural
-home if this module is extracted into a standalone `Periods.jl` foundation package.
-"""
-struct PeriodError <: ExactWKBError
-    msg::String
-end
-
-Base.showerror(io::IO, e::PeriodError) = print(io, "PeriodError: ", e.msg)

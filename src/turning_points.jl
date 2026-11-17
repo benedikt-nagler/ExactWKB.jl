@@ -46,67 +46,96 @@ is_simple(tp::TurningPoint) = tp.order == 1
 
 Base.:(==)(s::TurningPoint, t::TurningPoint) = s.z == t.z && s.order == t.order
 
-# Newton polish of a root of the exact Q, starting from `z0`; bails out at a critical
-# point (multiple root, `Q′ ≈ 0`) where Newton no longer converges quadratically.
-function _polish_root(prob::AbstractSchrodingerProblem, z0::Complex{F}; iters = 50) where {F}
-    z = z0
-    for _ in 1:iters
-        qz = prob(z)
-        dq = q_derivative_at(prob, z)
-        (iszero(dq) || abs(dq) ≤ eps(F) * (1 + abs(qz))) && break
-        Δ = qz / dq
-        z -= Δ
-        abs(Δ) ≤ eps(F) * (1 + abs(z)) && break
-    end
-    z
-end
-
-# Greedy single-linkage clustering: roots within `tol` of a cluster seed are merged;
-# the representative is the cluster mean and the order is the member count.
-function _cluster_roots(rts::Vector{Complex{F}}, tol) where {F}
-    used = falses(length(rts))
-    groups = Tuple{Complex{F},Int}[]
-    for i in eachindex(rts)
-        used[i] && continue
-        members = Complex{F}[rts[i]]
-        used[i] = true
-        for j in (i + 1):length(rts)
-            used[j] && continue
-            if abs(rts[j] - rts[i]) ≤ tol
-                push!(members, rts[j])
-                used[j] = true
-            end
+# Exact Euclidean arithmetic on the polynomial represented by the input numbers.
+# Floating coefficients are converted to their exact binary rational values.
+# Multiplicity is algebraic; distances between approximate roots never define it.
+_trim_poly(a) = (while length(a) > 1 && iszero(last(a)); pop!(a); end; a)
+function _root_divrem(a, b)
+    a = copy(a)
+    q = zeros(eltype(a), max(1, length(a) - length(b) + 1))
+    while length(a) >= length(b) && !all(iszero, a)
+        k = length(a) - length(b)
+        c = last(a) / last(b)
+        q[k + 1] = c
+        for j in eachindex(b)
+            a[k + j] -= c * b[j]
         end
-        push!(groups, (sum(members) / length(members), length(members)))
+        _trim_poly(a)
     end
-    groups
+    _trim_poly(q), a
+end
+function _root_gcd(a, b)
+    while !all(iszero, b)
+        _, rem = _root_divrem(a, b)
+        a, b = b, rem
+    end
+    a ./ last(a)
+end
+_root_quotient(a, b) = first(_root_divrem(a, b))
+function _squarefree_parts(q)
+    T = any(c -> !isreal(c), q) ? Complex{Rational{BigInt}} : Rational{BigInt}
+    f = T[isreal(c) ? Rational{BigInt}(real(c)) :
+          complex(Rational{BigInt}(real(c)), Rational{BigInt}(imag(c))) for c in q]
+    f ./= last(f)
+    c = _root_gcd(f, _poly_derivative(f))
+    w = _root_quotient(f, c)
+    out = Tuple{Vector{T},Int}[]
+    m = 1
+    while length(w) > 1
+        y = _root_gcd(w, c)
+        z = _root_quotient(w, y)
+        length(z) > 1 && push!(out, (z, m))
+        w, c = y, _root_quotient(c, y)
+        m += 1
+    end
+    out
 end
 
 """
-    turning_points(prob::AbstractSchrodingerProblem; cluster_tol = nothing) -> Vector{TurningPoint}
+    turning_points(prob::AbstractSchrodingerProblem; cluster_tol = nothing)
 
-The turning points of `prob`: the zeros of ``Q``, with multiplicities (for a
-[`RationalProblem`](@ref) the zeros of its numerator - a pole is a singularity, not a
-turning point). Roots
-are located with `PolynomialRoots.roots` in `Complex{F}` (`F` = the working float type
-of the coefficients - `BigFloat` for exact potentials, at the caller's
-`setprecision`), polished by Newton against the exact `Q`, then clustered to collapse
-multiple roots. Sorted deterministically by `(real, imag)`.
-
-`cluster_tol` overrides the merge tolerance (default `8·eps(F)^{1/3}`, which separates
-`O(1)`-spaced roots while merging a multiple root's `eps^{1/2}`-split copies).
+Locate zeros of the polynomial numerator and report their algebraic multiplicities.
+Multiplicity refers to the exact polynomial represented by the supplied coefficients.
+Floating coefficients are treated as exact binary rationals for this purpose.
+Root positions are numerical and follow the coefficient precision.
+`cluster_tol` is a separation guard, never permission to merge roots.
+Throws `Resurgence.InvalidArgument` when distinct roots are numerically unresolved.
 """
 function turning_points(prob::AbstractSchrodingerProblem; cluster_tol = nothing)
     F = _wkb_float(prob)
     q = _turning_polynomial(prob)
-    c = Complex{F}[Complex{F}(x) for x in q]
-    rts = length(c) == 2 ? Complex{F}[-c[1] / c[2]] : PolynomialRoots.roots(c)
-    polished = Complex{F}[_polish_root(prob, z) for z in rts]
-    tol = cluster_tol === nothing ? 8 * eps(F)^(1 // 3) : F(cluster_tol)
-    groups = _cluster_roots(polished, tol)
-    tps = [TurningPoint{F}(z, m) for (z, m) in groups]
+    all(isfinite, q) || throw(InvalidPotential("potential coefficients must be finite"))
+    tol = cluster_tol === nothing ? 8 * eps(F) : F(cluster_tol)
+    isfinite(tol) && tol >= 0 || throw(Resurgence.InvalidArgument(
+        "cluster_tol must be finite and nonnegative"))
+    tps = TurningPoint{F}[]
+    for (factor, multiplicity) in _squarefree_parts(q)
+        c = Complex{F}.(factor)
+        dc = _poly_derivative(c)
+        roots = length(c) == 2 ? [-c[1] / c[2]] : PolynomialRoots.roots(c)
+        for z0 in roots
+            z = z0
+            for _ in 1:50
+                dz = _horner(dc, z)
+                iszero(dz) && break
+                step = _horner(c, z) / dz
+                z -= step
+                abs(step) <= eps(F) * (1 + abs(z)) && break
+            end
+            isfinite(z) || throw(Resurgence.InvalidArgument("root location is not finite"))
+            scale = sum(abs(c[k])*abs(z)^(k-1) for k in eachindex(c))
+            abs(_horner(c,z)) <= 100*eps(F)*scale || throw(Resurgence.InvalidArgument(
+                "root residual is unresolved at the working precision"))
+            push!(tps, TurningPoint{F}(z, multiplicity))
+        end
+    end
+    for i in eachindex(tps), j in (i + 1):length(tps)
+        a, b = location(tps[i]), location(tps[j])
+        abs(a - b) > tol * (1 + max(abs(a), abs(b))) ||
+            throw(Resurgence.InvalidArgument(
+                "distinct turning points are unresolved; increase coefficient precision"))
+    end
     sort!(tps; by = t -> (real(t.z), imag(t.z)))
-    tps
 end
 
 """

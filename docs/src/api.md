@@ -1,17 +1,7 @@
-```@meta
-CurrentModule = ExactWKB
-```
+# Expansion and period API
 
-# API index
-
-Every exported name, alphabetically. The entries link to the manual page where each is
-documented.
-
-```@index
-```
-
-## The module
-
-```@docs
-ExactWKB
+```@autodocs
+Modules = [ExactWKB]
+Private = false
+Pages = ["src/errors.jl", "src/potentials.jl", "src/rational_potentials.jl", "src/turning_points.jl", "src/wkb_recursion.jl", "src/periods.jl", "src/voros.jl"]
 ```

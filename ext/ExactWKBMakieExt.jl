@@ -67,53 +67,5 @@ end
 
 const _MARKED_COLOR = :darkorange
 
-function ExactWKB.plot_triangulation(g::StokesGraph, t::IdealTriangulation;
-                                     resolution = (600, 600), title = nothing,
-                                     legend = true)
-    fig = Figure(size = resolution)
-    ttl = title === nothing ?
-          "Stokes graph + dual triangulation  (θ = $(round(Float64(g.theta), digits = 4)))" :
-          title
-    ax = Axis(fig[1, 1]; title = ttl, xlabel = L"\mathrm{Re}\,z",
-              ylabel = L"\mathrm{Im}\,z", aspect = DataAspect())
-    _draw!(ax, g)
-    # the boundary circle (where the rays exit) with the marked points at the
-    # asymptotic directions, and the diagonals as chords
-    R = maximum(abs(points(l)[end]) for l in ExactWKB.infinite_lines(g))
-    φ = range(0, 2π; length = 256)
-    lines!(ax, R .* cos.(φ), R .* sin.(φ); color = (:gray, 0.6), linestyle = :dot)
-    # Where a marked point goes: on the escape circle at infinity, on its own small
-    # circle at a finite pole, and AT the pole for a puncture - a puncture is a vertex
-    # of the surface, not a point on any circle, and its `marked_angles` entry is the
-    # mean arrival angle of its spiralling rays, which is display data with no
-    # geometric meaning.
-    pls = poles(g)
-    pr = [maximum((abs(points(l)[end] - pls[j])
-                   for l in lines(g) if endpoint(l) === :pole && target(l) == j);
-                  init = 0.0) for j in eachindex(pls)]
-    mp = map(1:t.n_marked) do i
-        c = t.marked_boundary[i]
-        c == 1 && return R * cis(t.marked_angles[i])
-        t.marked_is_puncture[i] ? complex(pls[c - 1]) :
-                                  pls[c - 1] + pr[c - 1] * cis(t.marked_angles[i])
-    end
-    scatter!(ax, Float64.(real.(mp)), Float64.(imag.(mp));
-             color = _MARKED_COLOR, markersize = 12, label = "marked point")
-    first_diag = true
-    for e in eachindex(t.edge_endpoints)
-        t.is_diagonal[e] || continue
-        zu, zv = mp[t.edge_endpoints[e][1]], mp[t.edge_endpoints[e][2]]
-        lines!(ax, Float64[real(zu), real(zv)], Float64[imag(zu), imag(zv)];
-               color = _MARKED_COLOR, linewidth = 2, linestyle = :dash,
-               label = first_diag ? "diagonal" : nothing)
-        first_diag = false
-        mid = (zu + zv) / 2
-        (i, j) = t.diagonal_tp_pair[e]
-        text!(ax, Float64(real(mid)), Float64(imag(mid));
-              text = "γ($i,$j)", color = _MARKED_COLOR, fontsize = 12)
-    end
-    legend && axislegend(ax; position = :rt, framevisible = false)
-    fig
-end
 
 end # module ExactWKBMakieExt

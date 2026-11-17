@@ -10,7 +10,7 @@ using Test
         @test isempty(saddles(airy))
     end
 
-    @testset "double well: 3 BPS states" begin
+    @testset "double well: three traced finite trajectories" begin
         dw = SchrodingerProblem([3//4, 0, -2, 0, 1])   # (z²−1)² − 1/4
         cands = saddle_candidates(dw)
         @test length(cands) == 6                        # C(4,2) pairs

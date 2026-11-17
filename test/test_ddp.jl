@@ -23,8 +23,8 @@ import ClusterAlgebras
     # γ₂: the (0,1) cycle, decaying along its own wall θ_c = π/2 as built.
     c1 = reverse(encircling_contour(tps[1], tps[2]; margin = 0.4))
     c2 = encircling_contour(tps[2], tps[3]; margin = 0.4)
-    v1 = voros_symbol(w, c1)
-    v2 = voros_symbol(w, c2)
+    v1 = voros_symbol(w, c1; rtol = 1e-6)
+    v2 = voros_symbol(w, c2; rtol = 1e-6)
     Zwall = abs(classical_period(v1))            # |Z_{γ₁}| ≈ 0.9585
     hs = [Zwall / x for x in (5.0, 6.5, 8.0)]
 
@@ -113,33 +113,6 @@ import ClusterAlgebras
         @test ClusterAlgebras.c_vector(ms, 2) == [max(Bmat[1, 2], 0), 1]
     end
 
-    @testset "pentagon / DT closure on the WKB chamber data" begin
-        κ = intersection_pairing(prob, c2, c1)
-        seed = ddp_seed([0 -κ; κ 0])
-        # confirmed saddles = the two-state chamber, θ-ordered γ₁ (θ_c=0), γ₂ (θ_c=π/2)
-        sads = sort(saddles(prob); by = s -> ExactWKB.theta(s))
-        @test [s.pair for s in sads] == [(1, 2), (2, 3)]
-        # charge additivity where it is exact (open-path orientations fix the sign):
-        # Z₁₃ = Z₁₂ − Z₂₃ for saddle_candidates' straight-path orientations
-        cands = saddle_candidates(prob)
-        Z = Dict(s.pair => central_charge(s) for s in cands)
-        @test Z[(1, 3)] ≈ Z[(1, 2)] - Z[(2, 3)] rtol = 1e-6
-        # chamber ↔ MGS identification (ledger item 6): the MGS charge order is the
-        # θ-DECREASING order of the confirmed saddle phases - here γ₂ (π/2), γ₁ (0)
-        mgs = ClusterAlgebras.maximal_green_sequences(seed)
-        @test any(seq -> ClusterAlgebras.ordered_c_vectors(seed, seq) ==
-                         [[0, 1], [1, 0]], mgs)
-        @test !any(seq -> ClusterAlgebras.ordered_c_vectors(seed, seq) ==
-                          [[1, 0], [0, 1]], mgs)          # θ-increasing does NOT match
-        # Zamolodchikov periodicity: h + 2 = 5 (the pentagon)
-        @test ClusterAlgebras.y_system(seed).period == 5
-        # DT transformation: Ω(γ) ≡ 1, tropical y_images = y ↦ y⁻¹ (C_final = −P_σ)
-        dt = ClusterAlgebras.dt_transformation(seed)
-        word = ClusterAlgebras.quantum_dilog_word(seed, dt.sequence)
-        @test all(==(1), values(ClusterAlgebras.omega(word)))
-        Cf = ClusterAlgebras.cmatrix(dt.seed)
-        @test all(Cf[dt.sigma[j], j] == -1 for j in 1:2)
-    end
 
     @testset "precision from the caller (BigFloat)" begin
         # 128 bits and order 10 keep the pin while the BigFloat quadrature (whose
@@ -164,7 +137,7 @@ import ClusterAlgebras
     @testset "error paths" begin
         ħ = hs[1]
         # growing wall symbol (un-reversed γ₁ cycle) is refused, never auto-flipped
-        v1grow = voros_symbol(w, reverse(c1))
+        v1grow = voros_symbol(w, reverse(c1); rtol = 1e-6)
         @test_throws Resurgence.InvalidArgument verify_ddp(v2, v1grow, 1, ħ; theta = 0.0)
         # pairing 0: predicted jump 0, absolute residual, no NaN
         r0 = verify_ddp(v2, v1, 0, ħ; theta = 0.0)

@@ -1,0 +1,6 @@
+Test Summary: | Pass  Total   Time
+periods       |   42     42  11.0s
+Test Summary:                        | Pass  Total  Time
+continued sheet and geometric guards |   11     11  0.8s
+Test Summary:                                  | Pass  Total  Time
+scale and quadrature tolerance are independent |    4      4  0.5s

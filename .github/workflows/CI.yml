@@ -46,13 +46,21 @@ jobs:
         with:
           version: ${{ matrix.version }}
       - uses: julia-actions/cache@v2
-      - name: Develop ExactWKB and the unreleased core into the test environment
+      # The core goes into the root environment too, not just test/: otherwise
+      # julia-buildpkg resolves it from the registry and the job holds two different
+      # ClusterAlgebras at once. `Registry.update` is load-bearing because
+      # julia-actions/cache restores ~/.julia/registries, which can predate a release
+      # that Aqua's own temp environment then fails to resolve.
+      - name: Develop ExactWKB and the unreleased core into both environments
         run: |
           julia -e '
             using Pkg
+            Pkg.Registry.update()
             Pkg.activate("test")
             Pkg.develop([PackageSpec(path = "ClusterAlgebras.jl"),
-                         PackageSpec(path = ".")])'
+                         PackageSpec(path = ".")])
+            Pkg.activate(".")
+            Pkg.develop(PackageSpec(path = "ClusterAlgebras.jl"))'
         shell: bash
       - uses: julia-actions/julia-buildpkg@v1
       # Run the test environment prepared above directly, rather than via

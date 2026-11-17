@@ -1,0 +1,56 @@
+name: Documenter
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+
+jobs:
+  docs:
+    name: Build and deploy documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pages: write
+      pull-requests: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+      # Same as CI: the docs build loads ClusterAlgebras.jl `main`, whose exports the
+      # ExactWKB docstrings refer to. Resurgence.jl resolves from the registry.
+      - uses: actions/checkout@v4
+        with:
+          repository: benedikt-nagler/ClusterAlgebras.jl
+          path: ClusterAlgebras.jl
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1"
+      - uses: julia-actions/cache@v2
+      # Both environments, and a registry refresh: see the note in CI.yml.
+      - name: Develop ExactWKB and the unreleased core into both environments
+        run: |
+          julia -e '
+            using Pkg
+            Pkg.Registry.update()
+            Pkg.activate("docs")
+            Pkg.develop([PackageSpec(path = "ClusterAlgebras.jl"),
+                         PackageSpec(path = ".")])
+            Pkg.activate(".")
+            Pkg.develop(PackageSpec(path = "ClusterAlgebras.jl"))'
+        shell: bash
+      - uses: julia-actions/julia-buildpkg@v1
+      # Not julia-actions/julia-docdeploy, which re-resolves docs/ and would lose the
+      # by-path entry for ExactWKB itself.
+      - name: Build and deploy
+        run: julia --project=docs docs/make.jl
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}

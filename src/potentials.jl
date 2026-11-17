@@ -200,7 +200,7 @@ returned angles are the *marked points* of the boundary circle at that singulari
 
 A **double** pole gives `e + 2 = 0` and the empty vector: it is a puncture, carrying
 no marked points, and the trajectories spiral into it instead of approaching a
-direction (see [`ring_domain_walls`](@ref)).
+direction; closed trajectories require separate analysis.
 """
 function asymptotic_directions(prob::AbstractSchrodingerProblem, theta; pole::Integer = 0)
     e, c = pole == 0 ? (_infinity_exponent(prob), _infinity_coefficient(prob)) :

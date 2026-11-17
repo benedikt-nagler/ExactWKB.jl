@@ -156,3 +156,9 @@ end
         end
     end
 end
+
+@testset "real coefficient domain is explicit" begin
+    @test_throws InvalidPotential wkb_expansion(SchrodingerProblem([1im,0,1]);order=2)
+    real_encoded = SchrodingerProblem(Complex{Rational{Int}}[0,1])
+    @test order(wkb_expansion(real_encoded;order=2)) == 2
+end

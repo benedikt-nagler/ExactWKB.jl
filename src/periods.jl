@@ -12,9 +12,8 @@
 #    breakpoints are those of the base point, and only the integrand is differentiated.
 #    For a CLOSED cycle this is exact, not an approximation - the period depends on the
 #    contour only through its homology class, so the moving turning points contribute
-#    nothing and there is no boundary term. Pinned by `sw_period_derivatives` (closed
-#    form) and `continue_periods` (Picard-Fuchs) agreeing with the frozen-contour
-#    quadrature, and by Cauchy-Riemann in the holomorphic direction.
+#    nothing and there is no boundary term. Pinned by harmonic derivatives, coefficient differences and Cauchy-Riemann
+#    checks in test_periods.jl. These are numerical comparisons, not error bounds.
 # 2. Consequently the derivative is **refused on an open contour**. On the
 #    turning-point-to-turning-point form the endpoints are branch points that move with
 #    the parameter, so a frozen contour drops a boundary term; `closed = false` is a
@@ -31,7 +30,8 @@ end
 
 # the float type carried by a contour / turning-point list
 _contour_float(::Type{Complex{F}}) where {F} = F
-_contour_float(::Type{<:Real}) = Float64
+_contour_float(::Type{F}) where {F<:AbstractFloat} = F
+_contour_float(::Type{<:Real}) = BigFloat
 _contour_float(v::AbstractVector) = _contour_float(eltype(v))
 
 _as_complex(z::Number) = complex(z)
@@ -47,33 +47,48 @@ function _contour_point(verts, K, s)
     z, dz
 end
 
-# Adaptive connection: append nodes from (s0,z0) to (s1,z1), subdividing until the
-# principal arg-Q step is ≤ π/2, carrying the unwrapped angle. Returns (pa1, uw1).
+# A disk bound for the polynomial image of a segment about its midpoint.
+# If the disk excludes zero, its argument stays within asin(radius/abs(center)).
+# For rational Q the denominator contributes the sum of the pole-factor bounds.
+# [IN14] 2.3 uses a continued square root; this bound prevents hidden full turns.
+function _segment_phase_bound(prob, z0, z1)
+    mid = (z0 + z1) / 2
+    h = abs(z1 - z0) / 2
+    c = _taylor_shift(_turning_polynomial(prob), mid)
+    radius = sum(abs(c[k]) * h^(k - 1) for k in 2:length(c); init = zero(h))
+    center = abs(c[1])
+    radius < center || return oftype(h, Inf)
+    bound = asin(radius / center)
+    for (pole, m) in zip(poles(prob), pole_orders(prob))
+        d = abs(mid - pole)
+        h < d || return oftype(h, Inf)
+        bound += m * asin(h / d)
+    end
+    bound
+end
+
 function _connect!(prob, s0, z0, pa0, uw0, s1, z1, S, PA, UW, atol, depth)
     Q1 = prob(z1)
-    abs(Q1) ≤ atol &&
-        throw(ContourError("contour passes through (or grazes) a turning point at " *
-                           "z ≈ $z1 where |Q| ≈ $(abs(Q1))"))
-    pa1 = angle(Q1)
-    d = _wrap(pa1 - pa0)
-    if abs(d) > π / 2 && depth > 0
-        sm = (s0 + s1) / 2
-        zm, _ = _contour_point_from_ends(z0, z1)
+    isfinite(Q1) && abs(Q1) > atol || throw(ContourError(
+        "contour reaches a zero, pole or unresolved value near z = $z1"))
+    if _segment_phase_bound(prob, z0, z1) >= oftype(s0, pi) / 4
+        depth > 0 || throw(ContourError("cannot resolve the square-root branch on a segment"))
+        sm, zm = (s0 + s1) / 2, (z0 + z1) / 2
+        (sm != s0 && sm != s1) || throw(ContourError("contour subdivision reached working precision"))
         pam, uwm = _connect!(prob, s0, z0, pa0, uw0, sm, zm, S, PA, UW, atol, depth - 1)
         return _connect!(prob, sm, zm, pam, uwm, s1, z1, S, PA, UW, atol, depth - 1)
     end
-    uw1 = uw0 + d
+    pa1 = angle(Q1)
+    uw1 = uw0 + _wrap(pa1 - pa0)
     push!(S, s1); push!(PA, pa1); push!(UW, uw1)
     pa1, uw1
 end
-
-_contour_point_from_ends(z0, z1) = ((z0 + z1) / 2, z1 - z0)
 
 # Build the branch-tracking node table (sorted global s, principal args, unwrapped
 # args) over the contour. Also returns the net unwrapped Δ over the whole path.
 function _branch_table(prob, verts::Vector{Complex{F}}, K, atol; maxdepth = 40) where {F}
     Q0 = prob(verts[1])
-    abs(Q0) ≤ atol &&
+    (!isfinite(Q0) || abs(Q0) ≤ atol) &&
         throw(ContourError("contour starts at a turning point (z ≈ $(verts[1]))"))
     pa0 = angle(Q0)
     S = F[zero(F)]; PA = [pa0]; UW = [pa0]
@@ -94,24 +109,11 @@ function _sqrt_Q(prob, s, S, PA, UW, verts, K)
     sqrt(abs(Q)) * cis(uw / 2), z, Q, dz
 end
 
-# atol for turning-point / grazing detection, scaled to the potential's size on the path.
-#
-# `sqrt(eps)` is a RELATIVE threshold, so the scale it multiplies has to be a *typical*
-# `|Q|` along the path, not an extremal one. The maximum is not typical once `Q` has
-# poles: a contour that runs anywhere near one takes `max|Q|` to infinity, and the
-# tolerance then swamps perfectly good values. Measured case (an order-4 pole 0.017 away
-# from the contour): `max|Q| = 6.0e6` put `atol` at 0.09 while the honest `|Q|` at the
-# contour's first vertex was 0.015, so a legitimate vertex was rejected as a turning
-# point and `charge_basis(prob, g)` failed on two of three chambers.
-#
-# The median is unmoved by those few huge samples, still goes to zero only where `Q`
-# genuinely does, and on a polynomial contour differs from the old scale by a constant -
-# so this loosens nothing that used to be caught (a vertex *on* a turning point has
-# `|Q| = 0` and trips any positive tolerance).
+# Geometric exclusion scale; independent of the requested quadrature tolerance.
 function _period_atol(prob, verts, F)
     isempty(verts) && return sqrt(eps(F))
     mags = sort!([F(abs(prob(z))) for z in verts])
-    sqrt(eps(F)) * (1 + mags[cld(length(mags), 2)])
+    eps(F) * mags[cld(length(mags), 2)]
 end
 
 # Gauss–Kronrod order for the period quadratures. The integrands are analytic on the
@@ -131,17 +133,20 @@ The classical period ``∮ √Q\\,dz`` (``= v_{-1}``) along the piecewise-linear
 back to its first vertex. The `√Q` branch is tracked continuously; a vertex sitting on
 a turning point, or a contour enclosing an odd number of turning points (so `√Q` is
 not single-valued), throws [`ContourError`](@ref). Precision follows the contour's
-float type.
+float type. `atol` and `rtol` control quadrature only.
+An unmet quadrature error target raises [`ContourError`](@ref).
 """
 function period_integral(prob::AbstractSchrodingerProblem, contour::AbstractVector;
-                         closed::Bool = true, rtol = nothing, maxevals::Integer = 10^6)
+                         closed::Bool = true, rtol = nothing, atol = nothing, maxevals::Integer = 10^6)
     F = _contour_float(_as_complex.(contour))
     verts = Complex{F}[_as_complex(z) for z in contour]
+    length(verts) >= 2 || throw(ContourError("contour needs at least two vertices"))
+    all(isfinite, verts) || throw(ContourError("contour vertices must be finite"))
     closed && push!(verts, verts[1])
     K = length(verts) - 1
     K ≥ 1 || throw(ContourError("contour needs ≥ 2 vertices"))
-    atol = _period_atol(prob, verts, F)
-    S, PA, UW, Δ = _branch_table(prob, verts, K, atol)
+    geom_tol = _period_atol(prob, verts, F)
+    S, PA, UW, Δ = _branch_table(prob, verts, K, geom_tol)
     if closed && isodd(round(Int, Δ / (2π)))
         throw(ContourError("closed contour encloses an odd number of turning points; " *
                            "√Q is not single-valued around it (branch ambiguity)"))
@@ -151,8 +156,12 @@ function period_integral(prob::AbstractSchrodingerProblem, contour::AbstractVect
         u * dz
     end
     rt = rtol === nothing ? sqrt(eps(F)) : F(rtol)
-    val, _ = quadgk(f, range(zero(F), one(F), length = K + 1)...;
-                    rtol = rt, maxevals = maxevals, order = _quad_order(F))
+    at = atol === nothing ? zero(F) : F(atol)
+    isfinite(rt) && isfinite(at) && rt >= 0 && at >= 0 && maxevals > 0 ||
+        throw(Resurgence.InvalidArgument("quadrature tolerances must be finite and nonnegative; maxevals must be positive"))
+    val, err = quadgk(f, S...;
+                    rtol = rt, atol = at, maxevals = maxevals, order = _quad_order(F))
+    err <= max(rt * abs(val), at) || throw(ContourError("period quadrature did not reach its requested tolerance"))
     val
 end
 
@@ -183,10 +192,13 @@ function wkb_period(w::Union{WKBExpansion,WKBDerivative}, contour::AbstractVecto
     prob = _wkb_prob(w)
     F = _contour_float(_as_complex.(contour))
     verts = Complex{F}[_as_complex(z) for z in contour]
+    length(verts) >= 2 || throw(ContourError("contour needs at least two vertices"))
+    all(isfinite, verts) || throw(ContourError("contour vertices must be finite"))
     closed && push!(verts, verts[1])
     K = length(verts) - 1
-    atol = _period_atol(prob, verts, F)
-    S, PA, UW, Δ = _branch_table(prob, verts, K, atol)
+    K >= 1 || throw(ContourError("contour needs at least two vertices"))
+    geom_tol = _period_atol(prob, verts, F)
+    S, PA, UW, Δ = _branch_table(prob, verts, K, geom_tol)
     if closed && isodd(round(Int, Δ / (2π)))
         throw(ContourError("closed contour encloses an odd number of turning points; " *
                            "√Q is not single-valued around it (branch ambiguity)"))
@@ -198,9 +210,12 @@ function wkb_period(w::Union{WKBExpansion,WKBDerivative}, contour::AbstractVecto
     end
     rt = rtol === nothing ? sqrt(eps(F)) : F(rtol)
     at = atol === nothing ? zero(F) : F(atol)
-    val, _ = quadgk(f, range(zero(F), one(F), length = K + 1)...;
+    isfinite(rt) && isfinite(at) && rt >= 0 && at >= 0 && maxevals > 0 ||
+        throw(Resurgence.InvalidArgument("quadrature tolerances must be finite and nonnegative; maxevals must be positive"))
+    val, err = quadgk(f, S...;
                     rtol = rt, atol = at, maxevals = maxevals,
                     order = _quad_order(F))
+    err <= max(rt * abs(val), at) || throw(ContourError("period quadrature did not reach its requested tolerance (m=$m, estimated error=$err, target=$(max(rt*abs(val),at)))"))
     val
 end
 
@@ -220,7 +235,7 @@ algebra, so it also covers a [`RationalProblem`](@ref), where `λ` is whichever
 parameter the caller differentiates `Q` by.
 """
 function period_derivative(prob::AbstractSchrodingerProblem, contour::AbstractVector,
-                           dQ; closed::Bool = true, rtol = nothing,
+                           dQ; closed::Bool = true, rtol = nothing, atol = nothing,
                            maxevals::Integer = 10^6)
     closed || throw(ContourError(
         "a parameter derivative is taken at frozen contour, which is exact only for a " *
@@ -228,11 +243,13 @@ function period_derivative(prob::AbstractSchrodingerProblem, contour::AbstractVe
         "parameter and the dropped boundary term is not small"))
     F = _contour_float(_as_complex.(contour))
     verts = Complex{F}[_as_complex(z) for z in contour]
+    length(verts) >= 2 || throw(ContourError("contour needs at least two vertices"))
+    all(isfinite, verts) || throw(ContourError("contour vertices must be finite"))
     closed && push!(verts, verts[1])
     K = length(verts) - 1
     K ≥ 1 || throw(ContourError("contour needs ≥ 2 vertices"))
-    atol = _period_atol(prob, verts, F)
-    S, PA, UW, Δ = _branch_table(prob, verts, K, atol)
+    geom_tol = _period_atol(prob, verts, F)
+    S, PA, UW, Δ = _branch_table(prob, verts, K, geom_tol)
     if closed && isodd(round(Int, Δ / (2π)))
         throw(ContourError("closed contour encloses an odd number of turning points; " *
                            "√Q is not single-valued around it (branch ambiguity)"))
@@ -242,8 +259,12 @@ function period_derivative(prob::AbstractSchrodingerProblem, contour::AbstractVe
         dQ(z) / (2 * u) * dz
     end
     rt = rtol === nothing ? sqrt(eps(F)) : F(rtol)
-    val, _ = quadgk(f, range(zero(F), one(F), length = K + 1)...;
-                    rtol = rt, maxevals = maxevals, order = _quad_order(F))
+    at = atol === nothing ? zero(F) : F(atol)
+    isfinite(rt) && isfinite(at) && rt >= 0 && at >= 0 && maxevals > 0 ||
+        throw(Resurgence.InvalidArgument("quadrature tolerances must be finite and nonnegative; maxevals must be positive"))
+    val, err = quadgk(f, S...;
+                    rtol = rt, atol = at, maxevals = maxevals, order = _quad_order(F))
+    err <= max(rt * abs(val), at) || throw(ContourError("period quadrature did not reach its requested tolerance"))
     val
 end
 

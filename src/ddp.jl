@@ -1,110 +1,15 @@
-# DDP layer: the Delabaere–Dillinger–Pham connection formula as the seam between the
-# summed Voros symbols (Resurgence side) and cluster y-mutation (ClusterAlgebras side).
-# This is the convention layer the cluster bridge builds on. The symbols never
-# move: a VorosSymbol is computed once from a fixed contour, and crossing the critical
-# phase θ_c only rotates the Laplace ray in the Borel plane, so wall-crossing is a
-# lateral-sum statement.
-#
-# In physics language the DDP jump factor (1 + V_{γ'})^{⟨γ,γ'⟩} is the
-# Kontsevich–Soibelman symplectomorphism attached to the BPS ray of γ', and the
-# integer Stokes constant is the Donaldson–Thomas statement Ω(γ')·⟨γ,γ'⟩.
-#
-# ── Convention ledger (each item pinned by an oracle in test/test_ddp.jl) ──────────
-#
-# 1. Lateral sums / Stokes automorphism are Resurgence's, with its Euler-pinned sign
-#    disc_θ = s_θ⁺ − s_θ⁻ and s₋ = s₊ ∘ 𝔖.
-# 2. DDP formula. For a wall at phase θ_c with (decaying) wall symbol V_{γ'} and any
-#    cycle γ:   s_θ⁺(log V_γ) − s_θ⁻(log V_γ) = ⟨γ, γ'⟩ · log(1 + V_{γ'}),
-#    with V_{γ'} evaluated by the median sum. As a factor this reads
-#    s₊(V_γ) = s₋(V_γ) · (1 + V_{γ'})^{⟨γ,γ'⟩} - ddp_transform maps the minus-side
-#    lateral value to the plus-side one. The Stokes constant IS the integer
-#    intersection number Ω(γ')·⟨γ,γ'⟩ with Ω = 1 for a saddle between two simple
-#    turning points. Pinned by the cubic assertion round(jump/log1p(V')) == ⟨γ,γ'⟩
-#    and by the direction oracle on the exponentiated values.
-# 3. ⟨γ,γ'⟩ = intersection_pairing(prob, cγ, cγ') - the signed same-sheet crossing
-#    count of the canonical lifts, a crossing of directions (d, d') counting
-#    sign(Im(conj(d)·d')). The canonical lift takes the principal √Q branch at the
-#    contour's first vertex - the same rule period_integral uses, so the pairing and
-#    the classical periods can never disagree about orientation.
-# 4. The wall symbol must DECAY along the wall: Re(Z_{γ'} e^{-iθ_c}) < 0. Enforced by
-#    a typed error and never flipped silently - reversing the contour flips both
-#    Z_{γ'} and every ⟨γ,γ'⟩, which shifts the DDP formula by the tropical monomial;
-#    an automatic flip is exactly the bug class this layer exists to kill.
-# 5. Cluster dictionary: y_j = V_{γ_j} with exchange matrix B = −P, P[i,j] = ⟨γ_i,γ_j⟩
-#    (ddp_seed) - i.e. b_kj = ⟨γ_j, γ_k⟩: an exchange-matrix entry is the pairing of
-#    the affected charge with the mutating one. Crossing the wall of γ_k (the initial
-#    seed lives on the plus side) is the y-mutation μ_k in the Fomin–Zelevinsky
-#    convention of ClusterAlgebras (y'_k = y_k⁻¹,
-#    y'_j = y_j y_k^{[b_kj]₊} (1+y_k)^{−b_kj}): the mutated y-variables evaluated at
-#    the plus-side values equal the minus-side values of the μ_k-mutated charges
-#    V_{γ'_j} = V_{γ_j} V_{γ_k}^{[b_kj]₊}. Pinned by verify_ddp_mutation on the cubic
-#    (the opposite B-sign, i.e. the opposite mutation direction, fails by ≥ 10×;
-#    B = −P was measured, B = +P off by ~0.14 where −P matched at ~2e-5).
-# 6. Chamber ↔ MGS: with these conventions the charges of a maximal green sequence
-#    (ClusterAlgebras.ordered_c_vectors) list the chamber's BPS states in the order
-#    their walls are crossed as θ DECREASES from the chamber's own θ₀ - i.e. by
-#    increasing `mod(θ₀ − θ_c, π)`. Pinned by the cubic's two-state chamber
-#    (the reverse order matches no MGS of the seed).
-#
-#    The θ₀ → π⁻ specialization of this is the plain "θ-decreasing order of the
-#    saddle phases" in which the item was originally pinned, and it is what the top
-#    (reference) chamber realizes. The original bridge layer used that absolute form everywhere, which is
-#    why it enumerated correctly in the top chamber and misordered elsewhere; the
-#    chamber-relative form (src/bps.jl `_sweep_chamber`) is the general statement.
-
-using Resurgence: borel, pade, lateral_sum
-
-# Borel–Padé approximant of the quantum tail. reduce = true is mandatory: the odd-only
-# Voros series has alternating zero coefficients, so the equal-degree Padé system is
-# always degenerate (documented at quantum_series).
-function _voros_approximant(vs::VorosSymbol; order = nothing)
-    B = borel(quantum_series(vs))
-    B, pade(B; order, reduce = true)
-end
-
-function _tail_sum(B, r, ħ; theta, side, tilt, rtol)
-    side === :median &&
-        return (lateral_sum(B, r, ħ; θ = theta, side = :plus, tilt, rtol) +
-                lateral_sum(B, r, ħ; θ = theta, side = :minus, tilt, rtol)) / 2
-    lateral_sum(B, r, ħ; θ = theta, side, tilt, rtol)
-end
-
-_value_type(ħ) = Complex{typeof(float(real(ħ)))}
-
-# log V = v₋₁/ħ + s(tail): the exponent of the Voros symbol. All jump arithmetic
-# happens here in log space (no overflow, and jumps compose additively).
-function _log_voros(vs::VorosSymbol, ħ::Number; theta::Real = 0, side::Symbol = :median,
-                    order = nothing, tilt::Real = 1 // 100, rtol = nothing)
-    side in (:plus, :minus, :median) || throw(Resurgence.InvalidArgument(
-        "side must be :plus, :minus or :median, got :$side"))
-    B, r = _voros_approximant(vs; order)
-    _value_type(ħ)(classical_period(vs) / ħ + _tail_sum(B, r, ħ; theta, side, tilt, rtol))
-end
-
-"""
-    voros_value(vs::VorosSymbol, ħ; theta = 0, side = :median, order = nothing,
-                tilt = 1//100, rtol = nothing) -> Complex
-
-The Borel-summed value ``V = \\exp(v_{-1}/ħ + s_θ(\\text{tail}))`` of the Voros
-symbol at `ħ`: the quantum tail is summed by Resurgence's `borel`/`pade`
-(`reduce = true`, mandatory for the odd-only series) and the lateral Laplace sum
-along the ray `theta` on the given `side` (`:plus`, `:minus`, or `:median` - the
-average of the two laterals, the canonical value *on* a Stokes ray). `order`
-truncates the Padé; `tilt`/`rtol` pass through to `Resurgence.lateral_sum`.
-Precision follows the type of `ħ`.
-"""
-function voros_value(vs::VorosSymbol, ħ::Number; theta::Real = 0, side::Symbol = :median,
-                     order = nothing, tilt::Real = 1 // 100, rtol = nothing)
-    exp(_log_voros(vs, ħ; theta, side, order, tilt, rtol))
-end
+# [IN14] Theorem 3.4: a single regular saddle between simple zeros.
+# Supplied cycles and pairing only; numerical comparisons do not certify a saddle
+# or completeness of a spectrum. B = -P; disc = s_plus - s_minus.
+# Numerical comparisons use explicit finite sector rays from voros.jl.
 
 """
     ddp_transform(V, Vp, pairing::Integer) -> Number
 
 The DDP transform on a summed Voros value across the wall of the (decaying) wall
 symbol with value `Vp`: ``V ↦ V\\,(1 + V_{γ'})^{⟨γ,γ'⟩}``. Applied to the
-**minus-side** lateral value it yields the **plus-side** one (item 2 of the
-convention ledger, direction pinned by the cubic oracle). The integer `pairing` is
+**minus-side** lateral value it yields the **plus-side** one, with direction
+pinned by the cubic reference test. The integer `pairing` is
 `⟨γ,γ'⟩ =` [`intersection_pairing`](@ref)`(prob, cγ, cγ')`.
 """
 ddp_transform(V::Number, Vp::Number, pairing::Integer) = V * (1 + Vp)^pairing
@@ -125,14 +30,18 @@ end
     verify_ddp(vγ::VorosSymbol, vγp::VorosSymbol, pairing::Integer, ħ; theta = 0,
                order = nothing, tilt = 1//100, rtol = nothing) -> NamedTuple
 
-Numerically verify the DDP connection formula at the wall `theta`: the measured jump
+Compare finite sector-ray estimates with the DDP connection formula at `theta`.
+The Iwaki-Nakanishi formula assumes a single regular saddle joining simple zeros and
+Borel summability in the adjacent saddle-free directions. The caller supplies the
+cycles and pairing; this function does not verify those geometric hypotheses.
+The measured jump
 ``s_θ^+(\\log V_γ) − s_θ^-(\\log V_γ)`` of the lateral sums of `vγ`'s tail against the
 prediction ``⟨γ,γ'⟩·\\log(1 + V_{γ'})`` with `vγp` the (decaying - enforced) wall
 symbol evaluated by its median sum. Returns
 
   - `jump_measured`, `jump_predicted` - the two sides of the identity (log space);
   - `kappa_measured = jump_measured / log1p(V')` - the Stokes-constant readout: an
-    **exact integer** (`= pairing`, the DT-invariant statement) up to Padé error;
+    numerical estimate to compare with the supplied integer `pairing`;
   - `residual`, `relative_residual` (absolute when `pairing == 0`), `v_prime`.
 """
 function verify_ddp(vγ::VorosSymbol, vγp::VorosSymbol, pairing::Integer, ħ::Number;
@@ -277,7 +186,9 @@ symbol of the cycle attached to vertex `i` of the initial principal-coefficient
     its median sum - a cycle is continuous across its own wall, ``⟨γ_k,γ_k⟩ = 0``).
 
 Returns `(predicted, measured, residuals, max_residual)` with
-`residuals = abs.(predicted ./ measured .- 1)`.
+`residuals = abs.(predicted ./ measured .- 1)`. These are finite-approximant
+comparisons under the hypotheses of [`verify_ddp`](@ref), not error bounds or
+automatic evidence that a regular saddle exists.
 """
 function verify_ddp_mutation(vsyms::AbstractVector{<:VorosSymbol},
                              seed::ClusterAlgebras.Seed, k::Integer, ħ::Number;
