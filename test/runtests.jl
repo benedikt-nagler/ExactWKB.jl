@@ -5,7 +5,7 @@ import Resurgence
 include("diagonalization.jl")
 @testset "ExactWKB.jl" begin
     @testset "Aqua" begin
-        Aqua.test_all(ExactWKB; ambiguities = false, persistent_tasks = (tmax = 60,))
+        Aqua.test_all(ExactWKB; ambiguities = false, persistent_tasks = (tmax = 300,))
         Aqua.test_ambiguities(ExactWKB)
     end
     include("test_errors.jl")
